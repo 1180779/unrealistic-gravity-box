@@ -41,17 +41,57 @@ __global__ void updateParticlesKernel(particles p, float wwidth, float wheight, 
     p.vy[i] -= g * p.m[i];
 
     // check window bounds
-    if (p.x[i] >= wwidth || p.x[i] <= 0)
-        p.vx[i] = -p.vx[i];
-    if (p.y[i] >= wheight || p.y[i] <= 0)
-        p.vy[i] = -p.vy[i];
+    if (p.x[i] >= wwidth)
+        p.vx[i] = -abs(p.vx[i]);
+    if (p.x[i] <= 0)
+        p.vx[i] = abs(p.vx[i]);
+
+    if (p.y[i] >= wheight)
+        p.vy[i] = -abs(p.vy[i]);
+    if (p.y[i] <= 0)
+        p.vy[i] = abs(p.vy[i]);
 
     int cell_x = p.x[i] / cell_size;
     int cell_y = p.y[i] / cell_size;
     p.cell[i] = cell_x * grid_width + cell_y;
 }
 
+__global__ void particlesCollisionKernel(particles p)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
+    if (i >= p.size)
+        return;
 
+    int cell = p.cell[i];
+    int j = i + 1;
+    int k = i;
+    while (k < p.size && p.cell[k] <= cell + 1)
+        ++k;
+
+    for (; j < k; ++j) {
+        float dist_x = p.x[i] - p.x[j];
+        float dist_y = p.y[i] - p.y[j];
+        float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
+        if (dist <= p.radius[i] + p.radius[j]) {
+            float norm_x = dist_x / dist;
+            float norm_y = dist_y / dist;
+
+            float rel_vx = p.vx[i] - p.vx[j];
+            float rel_vy = p.vy[i] - p.vy[j];
+
+            float rel_v = rel_vx * norm_x + rel_vy * norm_y;
+            if (rel_v > 0) // are moving in opposite direction
+                continue;
+            float impulse = (2.0f * rel_v) / (p.m[i] * p.m[j]);
+
+            p.vx[i] -= impulse * p.m[i] * norm_x;
+            p.vx[i] -= impulse * p.m[i] * norm_y;
+
+            p.vx[j] -= impulse * p.m[j] * norm_x;
+            p.vx[j] -= impulse * p.m[j] * norm_y;
+        }
+    }
+}
 
 
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
@@ -194,8 +234,24 @@ int main(int, char**)
         dim3 blocks = dim3(p.size / 16 + 1);
         dim3 threads = dim3(16);
         updateParticlesKernel<<<blocks, threads>>>(p, wwidth, wheigth, p.g, cell_size, grid_width);
-        thrust::sort_by_key()
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
 
+        thrust::sort_by_key(
+            p.d_cell.begin(), p.d_cell.end(), // Key vector
+            thrust::make_zip_iterator(
+                thrust::make_tuple(
+                    p.d_x.begin(),
+                    p.d_y.begin(),
+                    p.d_vx.begin(),
+                    p.d_vy.begin(),
+                    p.d_m.begin(),
+                    p.d_radius.begin()
+                )
+            ) // Values as a zip iterator
+        );
+
+        particlesCollisionKernel<<<blocks, threads>>>(p);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 

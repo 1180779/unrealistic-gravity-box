@@ -76,12 +76,14 @@ struct particles {
             h_x[i] = rand() % (int)(config.starting_wwidth - 2 * h_radius[i]) + h_radius[i];
             h_y[i] = rand() % (int)(config.starting_wheigth - 2 * h_radius[i]) + h_radius[i];
 
-            h_vx[i] = rand() % (int)(2 * config.maxabs_starting_velocity) - config.maxabs_starting_velocity;
-            h_vy[i] = rand() % (int)(2 * config.maxabs_starting_velocity) - config.maxabs_starting_velocity;
+            h_vx[i] = -config.maxabs_starting_velocity + static_cast <float> (rand()) / 
+                (static_cast <float> (RAND_MAX / (2*config.maxabs_starting_velocity)));;
+            h_vy[i] = -config.maxabs_starting_velocity + static_cast <float> (rand()) /
+                (static_cast <float> (RAND_MAX / (2 * config.maxabs_starting_velocity)));;
 
             ImVec4 c = ImVec4((rand() % 256)/255.0f, (rand() % 256)/255.0f, (rand() % 256)/255.0f, 1);
             color[i] = ImColor(c);
-            std::cout << "i = " << i << ", vx = " << h_vx[i] << ", vy = " << h_vy[i] << std::endl;
+            //std::cout << "i = " << i << ", vx = " << h_vx[i] << ", vy = " << h_vy[i] << std::endl;
         }
 
         thrust::copy(h_x.begin(), h_x.end(), d_x.begin());
