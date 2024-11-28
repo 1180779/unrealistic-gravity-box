@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35327.3
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Cuda_OpenGL_GLFW_glad_test", "Cuda_OpenGL_GLFW_glad_test\Cuda_OpenGL_GLFW_glad_test.vcxproj", "{A165B427-BE4E-4733-9123-4C655C3BF9DD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A165B427-BE4E-4733-9123-4C655C3BF9DD}.Debug|x64.ActiveCfg = Debug|x64
+		{A165B427-BE4E-4733-9123-4C655C3BF9DD}.Debug|x64.Build.0 = Debug|x64
+		{A165B427-BE4E-4733-9123-4C655C3BF9DD}.Release|x64.ActiveCfg = Release|x64
+		{A165B427-BE4E-4733-9123-4C655C3BF9DD}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {8F954C50-47BF-4251-8A57-53FEB28BBC9B}
+	EndGlobalSection
+EndGlobal
