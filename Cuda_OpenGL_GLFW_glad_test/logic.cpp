@@ -8,12 +8,27 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include <thrust/transform.h>
+
+#include <glm/glm.hpp>
 
 #include <vector>
 
-struct particles {
+struct particles_gpu {
     int size;
-    float g; // gravitational acceleration
+    int g;
+
+    float* x;
+    float* y;
+    float* vx;
+    float* vy;
+    float* m;
+    float* radius;
+    int* cell;
+};
+
+struct particles {
+    particles_gpu gpu;
 
     thrust::host_vector<float> h_x;
     thrust::host_vector<float> h_y;
@@ -21,7 +36,8 @@ struct particles {
     thrust::host_vector<float> h_vy;
     thrust::host_vector<float> h_m;
     thrust::host_vector<float> h_radius;
-    std::vector<ImU32> color;
+    std::vector<glm::vec4> color;
+    std::vector<glm::vec2> h_pos;
 
     thrust::device_vector<float> d_x;
     thrust::device_vector<float> d_y;
@@ -31,44 +47,37 @@ struct particles {
     thrust::device_vector<float> d_radius;
     thrust::device_vector<int> d_cell;
 
-    float* x;
-    float* y;
-    float* vx;
-    float* vy;
-    float* m;
-    float* radius;
-    int* cell;
-
     void initialize(const configuration &config) 
     {
-        size = config.particles_count;
-        g = config.g;
+        gpu.size = config.particles_count;
+        gpu.g = config.g;
 
-        h_x = thrust::host_vector<float>(config.particles_count);
-        h_y = thrust::host_vector<float>(config.particles_count);
-        h_vx = thrust::host_vector<float>(config.particles_count);
-        h_vy = thrust::host_vector<float>(config.particles_count);
-        h_m = thrust::host_vector<float>(config.particles_count);
-        h_radius = thrust::host_vector<float>(config.particles_count);
-        color.resize(config.particles_count);
+        h_x = thrust::host_vector<float>(gpu.size);
+        h_y = thrust::host_vector<float>(gpu.size);
+        h_vx = thrust::host_vector<float>(gpu.size);
+        h_vy = thrust::host_vector<float>(gpu.size);
+        h_m = thrust::host_vector<float>(gpu.size);
+        h_radius = thrust::host_vector<float>(gpu.size);
+        color.resize(gpu.size);
+        h_pos = std::vector<glm::vec2>(gpu.size);
 
-        d_x = thrust::device_vector<float>(config.particles_count);
-        d_y = thrust::device_vector<float>(config.particles_count);
-        d_vx = thrust::device_vector<float>(config.particles_count);
-        d_vy = thrust::device_vector<float>(config.particles_count);
-        d_m = thrust::device_vector<float>(config.particles_count);
-        d_radius = thrust::device_vector<float>(config.particles_count);
-        d_cell = thrust::device_vector<int>(config.particles_count);
+        d_x = thrust::device_vector<float>(gpu.size);
+        d_y = thrust::device_vector<float>(gpu.size);
+        d_vx = thrust::device_vector<float>(gpu.size);
+        d_vy = thrust::device_vector<float>(gpu.size);
+        d_m = thrust::device_vector<float>(gpu.size);
+        d_radius = thrust::device_vector<float>(gpu.size);
+        d_cell = thrust::device_vector<int>(gpu.size);
 
-        x = thrust::raw_pointer_cast(d_x.data());
-        y = thrust::raw_pointer_cast(d_y.data());
-        vx = thrust::raw_pointer_cast(d_vx.data());
-        vy = thrust::raw_pointer_cast(d_vy.data());
-        m = thrust::raw_pointer_cast(d_m.data());
-        radius = thrust::raw_pointer_cast(d_radius.data());
-        cell = thrust::raw_pointer_cast(d_cell.data());
+        gpu.x = thrust::raw_pointer_cast(d_x.data());
+        gpu.y = thrust::raw_pointer_cast(d_y.data());
+        gpu.vx = thrust::raw_pointer_cast(d_vx.data());
+        gpu.vy = thrust::raw_pointer_cast(d_vy.data());
+        gpu.m = thrust::raw_pointer_cast(d_m.data());
+        gpu.radius = thrust::raw_pointer_cast(d_radius.data());
+        gpu.cell = thrust::raw_pointer_cast(d_cell.data());
 
-        srand(time(0));
+        srand((unsigned int)time(0));
         for (int i = 0; i < config.particles_count; ++i) {
             h_radius[i] = 1.f;
             h_m[i] = 1.f;
@@ -81,8 +90,7 @@ struct particles {
             h_vy[i] = -config.maxabs_starting_velocity + static_cast <float> (rand()) /
                 (static_cast <float> (RAND_MAX / (2 * config.maxabs_starting_velocity)));;
 
-            ImVec4 c = ImVec4((rand() % 256)/255.0f, (rand() % 256)/255.0f, (rand() % 256)/255.0f, 1);
-            color[i] = ImColor(c);
+            color[i] = glm::vec4((rand() % 256)/255.0f, (rand() % 256)/255.0f, (rand() % 256)/255.0f, 1);
             //std::cout << "i = " << i << ", vx = " << h_vx[i] << ", vy = " << h_vy[i] << std::endl;
         }
 
@@ -98,5 +106,23 @@ struct particles {
     {
         thrust::copy(d_x.begin(), d_x.end(), h_x.begin());
         thrust::copy(d_y.begin(), d_y.end(), h_y.begin());
+
+        //thrust::transform(
+        //    d_x.begin(), d_x.end(),
+        //    h_pos.begin(),
+        //    [] (float x) {
+        //        return glm::vec2(x, 0.0f); // Only set x; y remains 0 for now
+        //    }
+        //);
+
+        //// Fill the y-components of host_positions
+        //thrust::transform(
+        //    d_y.begin(), d_y.end(),
+        //    h_pos.begin(),
+        //    [] (float y) {
+        //        return glm::vec2(0.0f, y); // Add y; x remains unchanged
+        //    },
+        //    thrust::plus<glm::vec2>() // Combine with existing values
+        //);
     }
 };

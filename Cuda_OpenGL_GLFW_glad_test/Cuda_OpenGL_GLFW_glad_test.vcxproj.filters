@@ -5,7 +5,6 @@
     <CudaCompile Include="logic.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="glad.c" />
     <ClCompile Include="imgui\imgui_widgets.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
@@ -28,6 +27,8 @@
       <Filter>imgui</Filter>
     </ClCompile>
     <ClCompile Include="configuration.cpp" />
+    <ClCompile Include="shaders.cpp" />
+    <ClCompile Include="glad.c" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">
@@ -63,5 +64,6 @@
       <Filter>imgui</Filter>
     </ClInclude>
     <ClInclude Include="configuration.h" />
+    <ClInclude Include="shaders.hpp" />
   </ItemGroup>
 </Project>

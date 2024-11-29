@@ -1,4 +1,7 @@
 ﻿
+#include <glad/glad.h>
+#include "shaders.hpp"
+
 #include "logic.cpp"
 #include "configuration.h"
 
@@ -6,31 +9,55 @@
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-// Dear ImGui: standalone example application for GLFW + OpenGL 3, using programmable pipeline
-// (GLFW is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan/Metal graphics context creation, etc.)
-
-// Learn about Dear ImGui:
-// - FAQ                  https://dearimgui.com/faq
-// - Getting Started      https://dearimgui.com/getting-started
-// - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
-// - Introduction, links and more at the top of imgui.cpp
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
+
+#include <glm/glm.hpp>
+
 #include <stdio.h>
+
+// ####################################################################################################################################################################################
+    // SHADERS
+
+const char* vertexShaderSource = R"(
+    #version 330 core
+    layout (location = 0) in vec2 aPos;
+    layout (location = 1) in float aRadius;
+    uniform mat4 uProjection;
+
+    void main() {
+        gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
+        gl_PointSize = aRadius;
+    }
+)";
+
+const char* fragmentShaderSource = R"(
+    #version 330 core
+    out vec4 FragColor;
+    uniform vec4 uColor;
+
+    void main() {
+        FragColor = uColor;
+    }
+)";
+
+
+// ####################################################################################################################################################################################
+
 
 #define MY_ERROR(source) perror(source), fprintf("file: %s, line: %d\n", __LINE__, __FILE__), exit(-1)
 #define ERROR_CUDA(status) do { \
             if(status != cudaSuccess) \
             { \
-                fprintf(stderr, "error: %s\n",  cudaGetErrorString); \
-                fprintf(stderr, "file: %s, line: %d\n"); \
+                fprintf(stderr, "error: %s\n",  cudaGetErrorString(status)); \
+                fprintf(stderr, "file: %s, line: %d\n", __FILE__, __LINE__); \
                 exit(-1); \
             } \
         } while(0) \
 
-__global__ void updateParticlesKernel(particles p, float wwidth, float wheight, float g, float cell_size, float grid_width)
+__global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheight, float cell_size, float grid_width)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
     if (i >= p.size)
@@ -38,7 +65,7 @@ __global__ void updateParticlesKernel(particles p, float wwidth, float wheight, 
 
     p.x[i] += p.vx[i];
     p.y[i] += p.vy[i];
-    p.vy[i] -= g * p.m[i];
+    p.vy[i] -= p.g * p.m[i];
 
     // check window bounds
     if (p.x[i] >= wwidth)
@@ -56,7 +83,7 @@ __global__ void updateParticlesKernel(particles p, float wwidth, float wheight, 
     p.cell[i] = cell_x * grid_width + cell_y;
 }
 
-__global__ void particlesCollisionKernel(particles p)
+__global__ void particlesCollisionKernel(particles_gpu p)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
     if (i >= p.size)
@@ -67,6 +94,7 @@ __global__ void particlesCollisionKernel(particles p)
     int k = i;
     while (k < p.size && p.cell[k] <= cell + 1)
         ++k;
+
 
     for (; j < k; ++j) {
         float dist_x = p.x[i] - p.x[j];
@@ -133,14 +161,14 @@ int main(int, char**)
     // GL 3.3 + GLSL 130
     const char* glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 #endif
-    
+
     // ####################################################################################################################################################################################
     // INITIALIZE AND CONFIGURE
-    
+
     ERROR_CUDA(cudaSetDevice(0));
 
     // load config
@@ -156,10 +184,18 @@ int main(int, char**)
     // Create window with graphics context
     GLFWwindow* window = glfwCreateWindow(wwidth, wheigth,
         "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr);
-    if (window == nullptr)
+    if (window == NULL) {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
         return 1;
+    }
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cerr << "Failed to initialize GLAD!" << std::endl;
+        return -1;
+    }
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -179,22 +215,81 @@ int main(int, char**)
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-    // - If the file cannot be loaded, the function will return a nullptr. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
-    // - Read 'docs/FONTS.md' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    // - Our Emscripten build process allows embedding fonts to be accessible at runtime from the "fonts/" folder. See Makefile.emscripten for details.
-    //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
-    //IM_ASSERT(font != nullptr);
+    //std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
+    //std::cout << "GLSL Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+
+    // ####################################################################################################################################################################################
+    // SHADERS
+
+    GLfloat vertices[] =
+    {
+        -0.5f, -0.5f * float(sqrt(3)) / 3, 0.0f, // Lower left corner
+        0.5f, -0.5f * float(sqrt(3)) / 3, 0.0f, // Lower right corner
+        0.0f, 0.5f * float(sqrt(3)) * 2 / 3, 0.0f // Upper corner
+    };
+
+    // Compile shaders
+    GLuint vertexShader = compileShader(vertexShaderSource, GL_VERTEX_SHADER);
+    GLuint fragmentShader = compileShader(fragmentShaderSource, GL_FRAGMENT_SHADER);
+
+    // Link shaders into a program
+    GLuint particleShaderProgram = linkProgram(vertexShader, fragmentShader);
+
+    // Clean up
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    // ####################################################################################################################################################################################
+    // DRAWING???
+
+    GLuint vao, vbo[3];
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    // Position buffer
+    glGenBuffers(1, &vbo[0]);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+    glBufferData(GL_ARRAY_BUFFER, p.gpu.size * sizeof(glm::vec2), p.h_pos.data(), GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Radius buffer
+    glGenBuffers(1, &vbo[1]);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+    glBufferData(GL_ARRAY_BUFFER, p.gpu.size * sizeof(float), p.h_radius.data(), GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+
+    // Color buffer
+    glGenBuffers(1, &vbo[2]);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+    glBufferData(GL_ARRAY_BUFFER, p.gpu.size * sizeof(glm::vec4), p.color.data(), GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
+    glEnableVertexAttribArray(2);
+
+    // ####################################################################################################################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // Our state
     ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
@@ -229,43 +324,37 @@ int main(int, char**)
         glfwGetWindowSize(window, &wwidth, &wheigth);
 
         int cell_size = 50;
-        int grid_width = ceil(wwidth / cell_size);
+        int grid_width = (int)ceil(wwidth / cell_size);
 
-        dim3 blocks = dim3(p.size / 16 + 1);
+        dim3 blocks = dim3(p.gpu.size / 16 + 1);
         dim3 threads = dim3(16);
-        updateParticlesKernel<<<blocks, threads>>>(p, wwidth, wheigth, p.g, cell_size, grid_width);
+        updateParticlesKernel<<<blocks, threads>>>(p.gpu, wwidth, wheigth, cell_size, grid_width);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 
-        thrust::sort_by_key(
-            p.d_cell.begin(), p.d_cell.end(), // Key vector
-            thrust::make_zip_iterator(
-                thrust::make_tuple(
-                    p.d_x.begin(),
-                    p.d_y.begin(),
-                    p.d_vx.begin(),
-                    p.d_vy.begin(),
-                    p.d_m.begin(),
-                    p.d_radius.begin()
-                )
-            ) // Values as a zip iterator
-        );
+        //thrust::sort_by_key(
+        //    p.d_cell.begin(), p.d_cell.end(), // Key vector
+        //    thrust::make_zip_iterator(
+        //        thrust::make_tuple(
+        //            p.d_x.begin(),
+        //            p.d_y.begin(),
+        //            p.d_vx.begin(),
+        //            p.d_vy.begin(),
+        //            p.d_m.begin(),
+        //            p.d_radius.begin()
+        //        )
+        //    ) // Values as a zip iterator
+        //);
 
-        particlesCollisionKernel<<<blocks, threads>>>(p);
+        //ERROR_CUDA(cudaGetLastError());
+        //ERROR_CUDA(cudaDeviceSynchronize());
+
+        /*particlesCollisionKernel<<<blocks, threads>>>(p);
         ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
+        ERROR_CUDA(cudaDeviceSynchronize());*/
 
         p.copy_results_back();
 
-        static ImVec4 col = ImVec4(1.0f, 1.0f, 0.4f, 1.0f);
-        const ImU32 col32 = ImColor(col);
-        ImDrawList* draw_list = ImGui::GetForegroundDrawList();
-        for (int i = 0; i < p.size; ++i) {
-            draw_list->AddCircleFilled(ImVec2(p.h_x[i], p.h_y[i]), p.h_radius[i], p.color[i], 8);
-        }
-
-
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
         {
             ImGui::Begin("Dynamic settings");
             ImGui::Text("Only background color is changeable for now.");
@@ -285,6 +374,21 @@ int main(int, char**)
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+        glUseProgram(particleShaderProgram);
+        glBindVertexArray(vao);
+        // Update buffers if necessary
+        glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, p.gpu.size * sizeof(glm::vec2), p.h_pos.data());
+
+        glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, p.gpu.size * sizeof(float), p.h_radius.data());
+
+        glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, p.gpu.size * sizeof(glm::vec4), p.color.data());
+
+        // Draw particles
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, p.gpu.size);
+
         glfwSwapBuffers(window);
     }
 #ifdef __EMSCRIPTEN__
@@ -295,6 +399,10 @@ int main(int, char**)
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+
+    //glDeleteVertexArrays(1, &VAO);
+    //glDeleteBuffers(1, &VBO);
+    //glDeleteProgram(shaderProgram);
 
     glfwDestroyWindow(window);
     glfwTerminate();
