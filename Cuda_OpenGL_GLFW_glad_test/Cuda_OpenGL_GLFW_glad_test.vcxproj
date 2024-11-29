@@ -108,6 +108,10 @@
     <ClInclude Include="imgui\imstb_truetype.h" />
     <ClInclude Include="shaders.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\simple.frag" />
+    <None Include="shaders\simple.vert" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 12.6.targets" />

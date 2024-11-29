@@ -1,4 +1,4 @@
-﻿
+
 #define SHADER_TESTING
 #define SHADER_TEST_1
 
@@ -38,7 +38,7 @@ private:
     std::string vertexShaderSource;
     std::string fragmentShaderSource;
 
-    void loadFromFile(std::string &str, std::string &file) 
+    void loadFromFile(std::string& str, std::string& file)
     {
         std::ifstream t(file);
 
@@ -54,22 +54,13 @@ public:
     const char* vertexShaderSourceC;
     const char* fragmentShaderSourceC;
 
-    shader_files(std::string vertexFile, std::string fragmentFile) 
+    shader_files(std::string vertexFile, std::string fragmentFile)
     {
         loadFromFile(vertexShaderSource, vertexFile);
         vertexShaderSourceC = vertexShaderSource.c_str();
 
         loadFromFile(fragmentShaderSource, fragmentFile);
         fragmentShaderSourceC = fragmentShaderSource.c_str();
-    }
-
-    void print()
-    {
-        std::cout << "vertex shader: \"\n";
-        std::cout << vertexShaderSourceC << "\"\n\n";
-
-        std::cout << "fragment shader: \"\n";
-        std::cout << fragmentShaderSourceC << "\"\n\n";
     }
 };
 
@@ -78,32 +69,6 @@ public:
 
 #define VERTEX_SHADER_SOURCE "shaders/simple.vert"
 #define FRAGMENT_SHADER_SOURCE "shaders/simple.frag"
-
-#endif
-
-#ifndef SHADER_TESTING
-
-const char* vertexShaderSource = R"(
-    #version 330 core
-    layout (location = 0) in vec2 aPos;
-    layout (location = 1) in float aRadius;
-    uniform mat4 uProjection;
-
-    void main() {
-        gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
-        gl_PointSize = aRadius;
-    }
-)";
-
-const char* fragmentShaderSource = R"(
-    #version 330 core
-    out vec4 FragColor;
-    uniform vec4 uColor;
-
-    void main() {
-        FragColor = uColor;
-    }
-)";
 
 #endif
 
@@ -118,74 +83,6 @@ const char* fragmentShaderSource = R"(
                 exit(-1); \
             } \
         } while(0)
-
-#ifndef SHADER_TESTING
-
-__global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheight, float cell_size, float grid_width)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
-    if (i >= p.size)
-        return;
-
-    p.x[i] += p.vx[i];
-    p.y[i] += p.vy[i];
-    p.vy[i] -= p.g * p.m[i];
-
-    // check window bounds
-    if (p.x[i] >= wwidth)
-        p.vx[i] = -abs(p.vx[i]);
-    if (p.x[i] <= 0)
-        p.vx[i] = abs(p.vx[i]);
-
-    if (p.y[i] >= wheight)
-        p.vy[i] = -abs(p.vy[i]);
-    if (p.y[i] <= 0)
-        p.vy[i] = abs(p.vy[i]);
-
-    int cell_x = p.x[i] / cell_size;
-    int cell_y = p.y[i] / cell_size;
-    p.cell[i] = cell_x * grid_width + cell_y;
-}
-
-__global__ void particlesCollisionKernel(particles_gpu p)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
-    if (i >= p.size)
-        return;
-
-    int cell = p.cell[i];
-    int j = i + 1;
-    int k = i;
-    while (k < p.size && p.cell[k] <= cell + 1)
-        ++k;
-
-
-    for (; j < k; ++j) {
-        float dist_x = p.x[i] - p.x[j];
-        float dist_y = p.y[i] - p.y[j];
-        float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
-        if (dist <= p.radius[i] + p.radius[j]) {
-            float norm_x = dist_x / dist;
-            float norm_y = dist_y / dist;
-
-            float rel_vx = p.vx[i] - p.vx[j];
-            float rel_vy = p.vy[i] - p.vy[j];
-
-            float rel_v = rel_vx * norm_x + rel_vy * norm_y;
-            if (rel_v > 0) // are moving in opposite direction
-                continue;
-            float impulse = (2.0f * rel_v) / (p.m[i] * p.m[j]);
-
-            p.vx[i] -= impulse * p.m[i] * norm_x;
-            p.vx[i] -= impulse * p.m[i] * norm_y;
-
-            p.vx[j] -= impulse * p.m[j] * norm_x;
-            p.vx[j] -= impulse * p.m[j] * norm_y;
-        }
-    }
-}
-
-#endif
 
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
@@ -209,27 +106,15 @@ int main(int, char**)
         return 1;
 
     // Decide GL+GLSL versions
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-    // GL ES 2.0 + GLSL 100
-    const char* glsl_version = "#version 100";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-#elif defined(__APPLE__)
-    // GL 3.2 + GLSL 150
-    const char* glsl_version = "#version 150";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
-#else
+    // ( ... )
+    // ( some #ifdef and #else )
+
     // GL 3.3 + GLSL 130
     const char* glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
-#endif
 
     // ####################################################################################################################################################################################
     // INITIALIZE AND CONFIGURE
@@ -293,7 +178,6 @@ int main(int, char**)
 #ifdef SHADER_TEST_1
 
     shader_files shader_files(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE);
-    shader_files.print();
 
     // Compile shaders
     GLuint vertexShader = compileShader(shader_files.vertexShaderSourceC, GL_VERTEX_SHADER);
@@ -311,9 +195,9 @@ int main(int, char**)
 
     GLfloat vertices[] =
     {
-        -0.5f, -0.5f * float(sqrt(3)) / 3, // Lower left corner
-        0.5f, -0.5f * float(sqrt(3)) / 3, // Lower right corner
-        0.0f, 0.5f * float(sqrt(3)) * 2 / 3, // Upper corner
+        -0.5f, -0.5f * float(sqrt(3)) / 3, 0.0f, // Lower left corner
+        0.5f, -0.5f * float(sqrt(3)) / 3, 0.0f, // Lower right corner
+        0.0f, 0.5f * float(sqrt(3)) * 2 / 3, 0.0f // Upper corner
     };
 
 
@@ -333,7 +217,7 @@ int main(int, char**)
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     // Configure the Vertex Attribute so that OpenGL knows how to read the VBO
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     // Enable the Vertex Attribute so that OpenGL knows to use it
     glEnableVertexAttribArray(0);
 
@@ -377,44 +261,6 @@ int main(int, char**)
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
-#ifndef SHADER_TESTING
-
-        glfwGetWindowSize(window, &wwidth, &wheigth);
-
-        int cell_size = 50;
-        int grid_width = (int)ceil(wwidth / cell_size);
-
-        dim3 blocks = dim3(p.gpu.size / 16 + 1);
-        dim3 threads = dim3(16);
-        updateParticlesKernel<<<blocks, threads>>>(p.gpu, wwidth, wheigth, cell_size, grid_width);
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
-
-        thrust::sort_by_key(
-            p.d_cell.begin(), p.d_cell.end(), // Key vector
-            thrust::make_zip_iterator(
-                thrust::make_tuple(
-                    p.d_x.begin(),
-                    p.d_y.begin(),
-                    p.d_vx.begin(),
-                    p.d_vy.begin(),
-                    p.d_m.begin(),
-                    p.d_radius.begin()
-                )
-            ) // Values as a zip iterator
-        );
-
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
-
-        particlesCollisionKernel<<<blocks, threads>>>(p);
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
-
-        p.copy_results_back();
-
-#endif
 
         {
             ImGui::Begin("Dynamic settings");

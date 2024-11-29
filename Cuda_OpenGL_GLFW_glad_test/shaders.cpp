@@ -8,13 +8,13 @@ GLuint compileShader(const char* source, GLenum shaderType) {
     glCompileShader(shader);
 
     // Check for compilation errors
-    /*GLint success;
+    GLint success;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (!success) {
         char infoLog[512];
         glGetShaderInfoLog(shader, 512, nullptr, infoLog);
         std::cerr << "Shader Compilation Failed:\n" << infoLog << std::endl;
-    }*/
+    }
 
     return shader;
 }
@@ -26,13 +26,13 @@ GLuint linkProgram(GLuint vertexShader, GLuint fragmentShader) {
     glLinkProgram(program);
 
     // Check for linking errors
-   /* GLint success;
+    GLint success;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
         char infoLog[512];
         glGetProgramInfoLog(program, 512, nullptr, infoLog);
         std::cerr << "Program Linking Failed:\n" << infoLog << std::endl;
-    }*/
+    }
 
     return program;
 }
