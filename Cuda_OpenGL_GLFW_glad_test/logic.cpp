@@ -20,7 +20,7 @@
 
 struct particles_gpu {
     int size;
-    int g;
+    float g;
     float radius;
 
     float* x;

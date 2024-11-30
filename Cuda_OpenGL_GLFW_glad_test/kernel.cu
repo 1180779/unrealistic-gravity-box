@@ -63,12 +63,12 @@ __global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheig
     // check window bounds
     if (p.x[i] >= wwidth)
         p.vx[i] = -abs(p.vx[i]);
-    if (p.x[i] <= 0)
+    if (p.x[i] <= 0.f)
         p.vx[i] = abs(p.vx[i]);
 
-    if (p.y[i] >= wheight)
-        p.vy[i] = -abs(p.vy[i]);
-    if (p.y[i] <= 0)
+    //if (p.y[i] >= wheight)
+    //    p.vy[i] = -abs(p.vy[i]);
+    if (p.y[i] <= 0.f)
         p.vy[i] = abs(p.vy[i]);
 
     int cell_x = p.x[i] / cell_size;
