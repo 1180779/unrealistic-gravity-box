@@ -29,7 +29,7 @@ struct particles_gpu {
     float* vy;
     float* m;
     int* cell;
-    GLfloat* color;
+    glm::vec4* color;
 };
 
 struct particles {
@@ -92,7 +92,8 @@ struct particles {
         thrust::copy(h_m.begin(), h_m.end(), d_m.begin());
     }
 
-    void mapFromVBO(cudaGraphicsResource*& cudaResource, float*& dest)
+    template <typename T>
+    void mapFromVBO(cudaGraphicsResource*& cudaResource, T*& dest)
     {
         ERROR_CUDA(cudaGraphicsMapResources(1, &cudaResource, 0));
         void* devPtr;
@@ -100,9 +101,9 @@ struct particles {
         ERROR_CUDA(cudaGraphicsResourceGetMappedPointer(&devPtr, &size, cudaResource));
 
         //std::cout << "mapped (size = " << size << ") bytes to cuda" << std::endl;
-        if (size < gpu.size * sizeof(float))
+        if (size < gpu.size * sizeof(T))
             MY_ERROR("cudaGraphicsResourceGetMappedPointer: returned size is too small");
-        dest = static_cast<float*>(devPtr);
+        dest = static_cast<T*>(devPtr);
     }
 
     void unmap(cudaGraphicsResource*& cudaResource)

@@ -1,7 +1,4 @@
 ﻿
-//#define SHADER_TESTING
-//#define SHADER_TEST_1
-
 #include <glad/glad.h>
 #include "shaders.hpp"
 
@@ -9,7 +6,6 @@
 
 #include "error_macros.h"
 #include "logic.cpp"
-//#include <glm/glm.hpp>
 
 #endif
 
@@ -30,25 +26,12 @@
 // ####################################################################################################################################################################################
     // SHADERS
 
-#ifndef SHADER_TESTING
-
 #define VERTEX_SHADER_SOURCE "shaders/cuda.vert"
 #define FRAGMENT_SHADER_SOURCE "shaders/cuda.frag"
 #define GEOMETRY_SHADER_SOURCE "shaders/cuda.geom"
 
-#endif
-
-
-#ifdef SHADER_TEST_1
-
-#define VERTEX_SHADER_SOURCE "shaders/simple.vert"
-#define FRAGMENT_SHADER_SOURCE "shaders/simple.frag"
-
-#endif
 
 // ####################################################################################################################################################################################
-
-#ifndef SHADER_TESTING
 
 __global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheight, float cell_size, float grid_width)
 {
@@ -85,7 +68,7 @@ __global__ void particlesCollisionKernel(particles_gpu p)
     int cell = p.cell[i];
     int j = i + 1;
     int k = i + 1;
-    while (k < p.size && p.cell[k] <= cell + 1)
+    while (k < p.size && p.cell[k] <= cell + 1 && p.cell[k] >= cell)
         ++k;
 
 
@@ -113,8 +96,6 @@ __global__ void particlesCollisionKernel(particles_gpu p)
         }
     }
 }
-
-#endif
 
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
@@ -263,10 +244,12 @@ int main(int, char**)
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 4 * p.gpu.size, p.color.data(), GL_DYNAMIC_DRAW);
 
     // register the buffers with CUDA
-    cudaGraphicsResource* cudaResource1;
-    ERROR_CUDA(cudaGraphicsGLRegisterBuffer(&cudaResource1, VBO[0], cudaGraphicsMapFlagsNone));
-    cudaGraphicsResource* cudaResource2;
-    ERROR_CUDA(cudaGraphicsGLRegisterBuffer(&cudaResource2, VBO[1], cudaGraphicsMapFlagsNone));
+    cudaGraphicsResource* cudaResourceX;
+    ERROR_CUDA(cudaGraphicsGLRegisterBuffer(&cudaResourceX, VBO[0], cudaGraphicsMapFlagsNone));
+    cudaGraphicsResource* cudaResourceY;
+    ERROR_CUDA(cudaGraphicsGLRegisterBuffer(&cudaResourceY, VBO[1], cudaGraphicsMapFlagsNone));
+    cudaGraphicsResource* cudaResourceColor;
+    ERROR_CUDA(cudaGraphicsGLRegisterBuffer(&cudaResourceColor, VBO[2], cudaGraphicsMapFlagsNone));
 
     // Bind the VBO as a vertex attribute
     // VBO[0]: x_position
@@ -289,45 +272,9 @@ int main(int, char**)
     // Bind the VAO so OpenGL knows to use it
     glBindVertexArray(VAO);
 
-#ifdef SHADER_TEST_1
-
-    GLfloat vertices[] =
-    {
-        -0.5f, -0.5f * float(sqrt(3)) / 3, // Lower left corner
-        0.5f, -0.5f * float(sqrt(3)) / 3, // Lower right corner
-        0.0f, 0.5f * float(sqrt(3)) * 2 / 3, // Upper corner
-    };
-
-
-    // Create reference containers for the Vartex Array Object and the Vertex Buffer Object
-    GLuint VAO, VBO;
-
-    // Generate the VAO and VBO with only 1 object each
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-
-    // Make the VAO the current Vertex Array Object by binding it
-    glBindVertexArray(VAO);
-
-    // Bind the VBO specifying it's a GL_ARRAY_BUFFER
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    // Introduce the vertices into the VBO
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // Configure the Vertex Attribute so that OpenGL knows how to read the VBO
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    // Enable the Vertex Attribute so that OpenGL knows to use it
-    glEnableVertexAttribArray(0);
-
-    // Bind both the VBO and VAO to 0 so that we don't accidentally modify the VAO and VBO we created
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-    // ####################################################################################################################################################################################
-
-#endif
-
-
+    p.mapFromVBO(cudaResourceX, p.gpu.x);
+    p.mapFromVBO(cudaResourceY, p.gpu.y);
+    p.mapFromVBO(cudaResourceColor, p.gpu.color);
 
 
     // Our state
@@ -373,9 +320,6 @@ int main(int, char**)
         glUniform1f(screenWidthLoc, wwidth);
         glUniform1f(screenHeightLoc, wheigth);
 
-        p.mapFromVBO(cudaResource1, p.gpu.x);
-        p.mapFromVBO(cudaResource2, p.gpu.y);
-
         dim3 blocks = dim3(p.gpu.size / 16 + 1);
         dim3 threads = dim3(16);
         updateParticlesKernel<<<blocks, threads>>>(p.gpu, wwidth, wheigth, cell_size, grid_width);
@@ -386,6 +330,7 @@ int main(int, char**)
         // Wrap raw pointers with device_pointer_cast
         //auto x_ptr = thrust::device_pointer_cast(p.gpu.x);
         //auto y_ptr = thrust::device_pointer_cast(p.gpu.y);
+        //auto color_ptr = thrust::device_pointer_cast(p.gpu.color);
         //thrust::sort_by_key(
         //    p.d_cell.begin(), p.d_cell.end(), // Key vector
         //    thrust::make_zip_iterator(
@@ -394,7 +339,8 @@ int main(int, char**)
         //            y_ptr,
         //            p.d_vx.begin(),
         //            p.d_vy.begin(),
-        //            p.d_m.begin()
+        //            p.d_m.begin(),
+        //            color_ptr
         //        )
         //    ) // Values as a zip iterator
         //);
@@ -405,9 +351,6 @@ int main(int, char**)
         //ERROR_CUDA(cudaGetLastError());
         //ERROR_CUDA(cudaDeviceSynchronize());
 
-        p.unmap(cudaResource1);
-        p.unmap(cudaResource2);
-
         // Step 5: Use the buffer in OpenGL shaders
         //glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer); // Bind buffer for shader use
 
@@ -415,7 +358,6 @@ int main(int, char**)
 
         {
             ImGui::Begin("Dynamic settings");
-            ImGui::Text("Only background color is changeable for now.");
 
             ImGui::ColorEdit3("Change background", (float*)&clear_color); // Edit 3 floats representing a color
 
@@ -431,22 +373,13 @@ int main(int, char**)
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
-#ifndef SHADER_TEST
+
 
         // Use the buffer in OpenGL
         /*glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer);*/
 
         // Draw the triangle using the GL_TRIANGLES primitive
         glDrawArrays(GL_POINTS, 0, p.gpu.size);
-#endif
-#ifdef SHADER_TEST_1
-        // Tell OpenGL which Shader Program we want to use
-        glUseProgram(particleShaderProgram);
-        // Bind the VAO so OpenGL knows to use it
-        glBindVertexArray(VAO);
-        // Draw the triangle using the GL_TRIANGLES primitive
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-#endif
 
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
@@ -455,17 +388,14 @@ int main(int, char**)
     EMSCRIPTEN_MAINLOOP_END;
 #endif
 
+    p.unmap(cudaResourceX);
+    p.unmap(cudaResourceY);
+    p.unmap(cudaResourceColor);
+
     // Cleanup
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-
-#ifdef SHADER_TEST_1
-    // Delete all the objects we've created
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteProgram(particleShaderProgram);
-#endif
 
     glfwDestroyWindow(window);
     glfwTerminate();
