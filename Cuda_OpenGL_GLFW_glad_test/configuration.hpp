@@ -2,6 +2,8 @@
 #ifndef _CONFIGURATION_1180779_
 #define _CONFIGURATION_1180779_
 
+#define DEBUG
+
 class configuration
 {
 public:

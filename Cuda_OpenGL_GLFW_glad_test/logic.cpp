@@ -88,12 +88,18 @@ void particles::copy_back() {
     ERROR_CUDA(cudaGetLastError());
     ERROR_CUDA(cudaDeviceSynchronize());
         
+    float* raw_vx = h_vx.data();
+    ERROR_CUDA(cudaMemcpy(raw_vx, gpu.vx, sizeof(float) * gpu.size, cudaMemcpyDeviceToHost));
+    ERROR_CUDA(cudaGetLastError());
+    ERROR_CUDA(cudaDeviceSynchronize());
+
     float* raw_vy = h_vy.data();
     ERROR_CUDA(cudaMemcpy(raw_vy, gpu.vy, sizeof(float) * gpu.size, cudaMemcpyDeviceToHost));
     ERROR_CUDA(cudaGetLastError());
     ERROR_CUDA(cudaDeviceSynchronize());
         
+    printf("\n\nPARTICLE DATA: \n");
     for (int i = 0; i < gpu.size; ++i) {
-        std::cout << "i = " << i << " | x = " << h_x[i] << ", y = " << h_y[i]  << ", vy = " << h_vy[i] << std::endl;
+        printf("i = %5d | x = %5.3f | y = %5.3f | vx = %5.3f | vy = %5.3f\n", i, h_x[i], h_y[i], h_vx[i], h_vy[i]);
     }
 }

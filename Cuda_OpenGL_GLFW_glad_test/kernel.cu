@@ -174,11 +174,6 @@ int main(int, char**)
     configuration config;
     config.load_configuration();
 
-    particles p;
-    p.initialize(config);
-    partciles_temp p_temp;
-    p_temp.initalize(p.gpu.size);
-
     int wwidth = config.wwidth;
     int wheigth = config.wheigth;
 
@@ -239,7 +234,77 @@ int main(int, char**)
     glDeleteShader(geomertyShader);
     std::cout << "Shaders linked!" << std::endl;
 
-    std::cout << "Initializing..." << std::endl;
+    ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
+    bool startSimulation = false;
+    
+    // Configuration loop
+    while (!glfwWindowShouldClose(window) && !startSimulation)
+    {
+        glfwPollEvents();
+        if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0)
+        {
+            ImGui_ImplGlfw_Sleep(10);
+            continue;
+        }
+
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        {
+#define CONFIG_WINDOW_WIDTH 400
+#define CONFIG_WINDOW_HEIGHT 180
+#define FIELD_WIDTH 150
+            ImGui::SetNextWindowSize(ImVec2(CONFIG_WINDOW_WIDTH, CONFIG_WINDOW_HEIGHT));
+            ImGui::Begin("Simulation configuration", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+
+            ImGui::SetNextItemWidth(FIELD_WIDTH);
+            ImGui::InputInt("Particles count", &config.count, 1000, 10000);
+            if (config.count <= 0)
+                config.count = 1000;
+
+            ImGui::SetNextItemWidth(FIELD_WIDTH);
+            ImGui::InputFloat("Maximum abs velocity in x axis", &config.maxabs_starting_xvelocity, 0.05f, 0.02f);
+            if (config.maxabs_starting_xvelocity <= 0.f)
+                config.maxabs_starting_xvelocity = 0.05f;
+
+            ImGui::SetNextItemWidth(FIELD_WIDTH);
+            ImGui::InputFloat("Maximum abs velocity in y axis", &config.maxabs_starting_yvelocity, 0.05f, 0.02f);
+            if (config.maxabs_starting_yvelocity <= 0.f)
+                config.maxabs_starting_yvelocity = 0.05f;
+
+            ImGui::SetNextItemWidth(FIELD_WIDTH);
+            ImGui::InputFloat("Acceleration (g)", &config.g, 0.005f, 0.01f);
+            ImGui::SetNextItemWidth(FIELD_WIDTH);
+            ImGui::InputFloat("Particle radius", &config.radius, 0.5f, 1.0f);
+            if (config.radius <= 0.5f)
+                config.radius = 0.5f;
+
+            startSimulation = ImGui::Button("Start simulation");
+
+            ImGui::End();
+        }
+
+        // Rendering
+        ImGui::Render();
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        glfwSwapBuffers(window);
+    }
+
+    std::cout << "Initializing particles..." << std::endl;
+    particles p;
+    p.initialize(config);
+    partciles_temp p_temp;
+    p_temp.initalize(p.gpu.size);
+
+    std::cout << "Initializing buffers..." << std::endl;
     p.initialize(config);
 
     GLuint VAO, VBO[3];
@@ -251,10 +316,10 @@ int main(int, char**)
     glBindVertexArray(VAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * p.gpu.size,  p.h_x.data(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float)* p.gpu.size, p.h_x.data(), GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * p.gpu.size, p.h_y.data(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float)* p.gpu.size, p.h_y.data(), GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 4 * p.gpu.size, p.color.data(), GL_DYNAMIC_DRAW);
@@ -296,8 +361,14 @@ int main(int, char**)
     GLint radiusyLocation = glGetUniformLocation(particleShaderProgram, "radius_x");
     GLint radiusxLocation = glGetUniformLocation(particleShaderProgram, "radius_y");
 
-    ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
-    std::cout << "Initialized!" << std::endl;
+    int cell_size = std::min(
+        static_cast<int>(config.radius * 16 + config.maxabs_starting_xvelocity * 4 + 
+            config.maxabs_starting_yvelocity * 4 + config.g * 4), 
+        std::min(wwidth, wheigth) );
+    int grid_width = static_cast<int>(
+        ceil(static_cast<double>(wwidth) / static_cast<double>(cell_size)) );
+
+    std::cout << "Starting simulation..." << std::endl;
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -320,9 +391,6 @@ int main(int, char**)
         ImGui::NewFrame();
 
         glfwGetWindowSize(window, &wwidth, &wheigth);
-
-        int cell_size = 50;
-        int grid_width = (int)ceil(wwidth / cell_size);
 
         // uniform data for shaders
         glUniform1f(screenWidthLoc, wwidth);
@@ -356,12 +424,18 @@ int main(int, char**)
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 
-        {
-            ImGui::Begin("Dynamic settings");
+#ifdef DEBUG
+        p.copy_back();
+#endif
 
+        {
+            ImGui::SetNextWindowSize(ImVec2(300, 80));
+            ImGui::Begin("Dynamic settings", NULL, ImGuiWindowFlags_NoResize);
+
+            ImGui::SetNextItemWidth(150);
             ImGui::ColorEdit3("Change background", (float*)&clear_color); // Edit 3 floats representing a color
 
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            ImGui::Text("Average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
         }
 
