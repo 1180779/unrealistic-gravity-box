@@ -28,7 +28,9 @@
     </ClCompile>
     <ClCompile Include="configuration.cpp" />
     <ClCompile Include="shaders.cpp" />
-    <ClCompile Include="glad.c" />
+    <ClCompile Include="glad.c">
+      <Filter>opengl</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">
@@ -36,6 +38,9 @@
     </Filter>
     <Filter Include="shaders">
       <UniqueIdentifier>{332b53cc-5d2a-45e1-8d12-6ffdbe2c5465}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="opengl">
+      <UniqueIdentifier>{faa7a0cc-54a6-431a-956d-faf65e228a7c}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

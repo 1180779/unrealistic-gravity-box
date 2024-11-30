@@ -2,12 +2,8 @@
 #include <glad/glad.h>
 #include "shaders.hpp"
 
-#ifndef SHADER_TESTING
-
 #include "error_macros.h"
 #include "logic.cpp"
-
-#endif
 
 #include "configuration.h"
 
@@ -276,8 +272,6 @@ int main(int, char**)
     p.mapFromVBO(cudaResourceY, p.gpu.y);
     p.mapFromVBO(cudaResourceColor, p.gpu.color);
 
-
-    // Our state
     ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
 
     // Main loop
@@ -373,12 +367,6 @@ int main(int, char**)
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
-
-
-        // Use the buffer in OpenGL
-        /*glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer);*/
-
-        // Draw the triangle using the GL_TRIANGLES primitive
         glDrawArrays(GL_POINTS, 0, p.gpu.size);
 
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -391,11 +379,20 @@ int main(int, char**)
     p.unmap(cudaResourceX);
     p.unmap(cudaResourceY);
     p.unmap(cudaResourceColor);
+    ERROR_CUDA(cudaGraphicsUnregisterResource(cudaResourceX));
+    ERROR_CUDA(cudaGraphicsUnregisterResource(cudaResourceY));
+    ERROR_CUDA(cudaGraphicsUnregisterResource(cudaResourceColor));
 
     // Cleanup
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO[0]);
+    glDeleteBuffers(1, &VBO[1]);
+    glDeleteBuffers(1, &VBO[2]);
+    glDeleteProgram(particleShaderProgram);
 
     glfwDestroyWindow(window);
     glfwTerminate();
