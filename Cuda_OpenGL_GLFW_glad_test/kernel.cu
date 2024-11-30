@@ -21,15 +21,11 @@
 
 #define BLOCK_SIZE 16
 
-// ####################################################################################################################################################################################
-    // SHADERS
-
 #define VERTEX_SHADER_SOURCE "shaders/cuda.vert"
 #define FRAGMENT_SHADER_SOURCE "shaders/cuda.frag"
 #define GEOMETRY_SHADER_SOURCE "shaders/cuda.geom"
 
-
-// ####################################################################################################################################################################################
+#pragma region KERNELS
 
 __global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheight, float cell_size, float grid_width)
 {
@@ -122,6 +118,8 @@ __global__ void particlesCollisionKernel(particles_gpu p)
         }
     }
 }
+
+#pragma endregion KERNELS
 
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
@@ -221,14 +219,10 @@ int main(int, char**)
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
     std::cout << "GLSL Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
 
-    // ####################################################################################################################################################################################
-    // SHADERS
-
     std::cout << "Loading shader files..." << std::endl;
     shader_files shader_files(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE, GEOMETRY_SHADER_SOURCE);
     shader_files.print();
 
-    // Compile shaders
     std::cout << "Compiling vertex shader..." << std::endl;
     GLuint vertexShader = compileShader(shader_files.vertexShaderSourceC, GL_VERTEX_SHADER);
     std::cout << "Compiling fragment shader..." << std::endl;
@@ -236,29 +230,24 @@ int main(int, char**)
     std::cout << "Compiling geometry shader..." << std::endl;
     GLuint geomertyShader = compileShader(shader_files.geometryShaderSourceC, GL_GEOMETRY_SHADER);
 
-    // Link shaders into a program
+    // Link shaders
     GLuint particleShaderProgram = linkProgram(vertexShader, fragmentShader, geomertyShader);
 
     // Clean up
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
     glDeleteShader(geomertyShader);
-    std::cout << "Shaders loaded!" << std::endl;
-
-    // ####################################################################################################################################################################################
-    // DRAWING???
+    std::cout << "Shaders linked!" << std::endl;
 
     std::cout << "Initializing..." << std::endl;
     p.initialize(config);
 
-    // Create reference containers for the Vartex Array Object and the Vertex Buffer Object
     GLuint VAO, VBO[3];
 
-    // Generate the VAO and VBO with only 1 object each
     glGenVertexArrays(1, &VAO);
     glGenBuffers(3, VBO);
 
-    // Make the VAO the current Vertex Array Object by binding it
+
     glBindVertexArray(VAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
@@ -278,47 +267,40 @@ int main(int, char**)
     cudaGraphicsResource* cudaResourceColor;
     ERROR_CUDA(cudaGraphicsGLRegisterBuffer(&cudaResourceColor, VBO[2], cudaGraphicsMapFlagsNone));
 
-    // Bind the VBO as a vertex attribute
-    // VBO[0]: x_position
+    // VBO[0]: x pos
     glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
     glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0); // Enable location 0 (x_position)
+    glEnableVertexAttribArray(0); // location 0 (x)
 
-    // VBO[1]: y_position
+    // VBO[1]: y pos
     glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
     glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1); // Enable location 1 (y_position)
+    glEnableVertexAttribArray(1); // location 1 (y)
 
-    // VBO[2]: color_data
+    // VBO[2]: color
     glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
     glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(2); // Enable location 2 (color_data)
+    glEnableVertexAttribArray(2); // location 2 (color)
 
-    // Tell OpenGL which Shader Program we want to use
     glUseProgram(particleShaderProgram);
-    // Bind the VAO so OpenGL knows to use it
     glBindVertexArray(VAO);
 
+    // map VBOs for CUDA use
     p.mapFromVBO(cudaResourceX, p.gpu.x);
     p.mapFromVBO(cudaResourceY, p.gpu.y);
     p.mapFromVBO(cudaResourceColor, p.gpu.color);
 
+    // get uniform location
+    GLint screenWidthLoc = glGetUniformLocation(particleShaderProgram, "screenWidth");
+    GLint screenHeightLoc = glGetUniformLocation(particleShaderProgram, "screenHeight");
     GLint radiusyLocation = glGetUniformLocation(particleShaderProgram, "radius_x");
     GLint radiusxLocation = glGetUniformLocation(particleShaderProgram, "radius_y");
 
+    ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
     std::cout << "Initialized!" << std::endl;
 
-    ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
-
     // Main loop
-#ifdef __EMSCRIPTEN__
-    // For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the imgui.ini file.
-    // You may manually call LoadIniSettingsFromMemory() to load settings from your own storage.
-    io.IniFilename = nullptr;
-    EMSCRIPTEN_MAINLOOP_BEGIN
-#else
     while (!glfwWindowShouldClose(window))
-#endif
     {
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
@@ -342,25 +324,21 @@ int main(int, char**)
         int cell_size = 50;
         int grid_width = (int)ceil(wwidth / cell_size);
 
-        GLint screenWidthLoc = glGetUniformLocation(particleShaderProgram, "screenWidth");
-        GLint screenHeightLoc = glGetUniformLocation(particleShaderProgram, "screenHeight");
-
+        // uniform data for shaders
         glUniform1f(screenWidthLoc, wwidth);
         glUniform1f(screenHeightLoc, wheigth);
+        glUniform1f(radiusxLocation, p.gpu.radius / wwidth * 2.0f);
+        glUniform1f(radiusyLocation, p.gpu.radius / wheigth * 2.0f);
 
-        float radius_x = p.gpu.radius / wwidth * 2.0f;
-        float radius_y = p.gpu.radius / wheigth * 2.0f;
-        glUniform1f(radiusxLocation, radius_x);
-        glUniform1f(radiusyLocation, radius_y);
-
-        // update particles locations
         dim3 blocks = dim3(p.gpu.size / BLOCK_SIZE + 1);
         dim3 threads = dim3(BLOCK_SIZE);
+
+        // update particles positions
         updateParticlesKernel<<<blocks, threads>>>(p.gpu, wwidth, wheigth, cell_size, grid_width);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
         
-        // sort
+        // sort indexes and copy the data back and forth
         thrust::sort_by_key(p.d_cell.begin(), p.d_cell.end(), p.d_index.begin());
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
@@ -374,13 +352,9 @@ int main(int, char**)
         ERROR_CUDA(cudaDeviceSynchronize());
 
         // collisions
-
         particlesCollisionKernel<<<blocks, threads>>>(p.gpu);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
-
-        // Step 5: Use the buffer in OpenGL shaders
-        //glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer); // Bind buffer for shader use
 
         {
             ImGui::Begin("Dynamic settings");
@@ -404,10 +378,8 @@ int main(int, char**)
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
     }
-#ifdef __EMSCRIPTEN__
-    EMSCRIPTEN_MAINLOOP_END;
-#endif
 
+    // unmap and unregister buffers for CUDA use
     p.unmap(cudaResourceX);
     p.unmap(cudaResourceY);
     p.unmap(cudaResourceColor);
@@ -420,6 +392,7 @@ int main(int, char**)
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
+    // delete openGL buffers
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO[0]);
     glDeleteBuffers(1, &VBO[1]);
