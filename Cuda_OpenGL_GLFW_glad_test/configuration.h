@@ -2,14 +2,15 @@
 class configuration
 {
 public:
-    int starting_wwidth;
-    int starting_wheigth;
+    int wwidth;
+    int wheigth;
 
     float g;
-    float maxabs_starting_velocity; // in pixels per frame
+    float maxabs_starting_xvelocity; // in pixels per frame
+    float maxabs_starting_yvelocity; // in pixels per frame
     float radius;
 
-    int particles_count;
+    int count;
 
     void load_configuration();
 };

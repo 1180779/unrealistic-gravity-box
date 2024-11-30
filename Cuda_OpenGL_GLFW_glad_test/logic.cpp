@@ -17,6 +17,42 @@
 
 #include <vector>
 
+struct particles_temp_gpu {
+    float* temp_x;
+    float* temp_y;
+    float* temp_vx;
+    float* temp_vy;
+    float* temp_m;
+    glm::vec4* temp_color;
+};
+
+struct partciles_temp {
+    particles_temp_gpu gpu;
+
+    thrust::device_vector<float> temp_x;
+    thrust::device_vector<float> temp_y;
+    thrust::device_vector<float> temp_vx;
+    thrust::device_vector<float> temp_vy;
+    thrust::device_vector<float> temp_m;
+    thrust::device_vector<glm::vec4> temp_color;
+
+    void initalize(int size) 
+    {
+        temp_x = thrust::device_vector<float>(size);
+        temp_y = thrust::device_vector<float>(size);
+        temp_vx = thrust::device_vector<float>(size);
+        temp_vy = thrust::device_vector<float>(size);
+        temp_m = thrust::device_vector<float>(size);
+        temp_color = thrust::device_vector<glm::vec4>(size);
+
+        gpu.temp_x = thrust::raw_pointer_cast(temp_x.data());
+        gpu.temp_y = thrust::raw_pointer_cast(temp_y.data());
+        gpu.temp_vx = thrust::raw_pointer_cast(temp_vx.data());
+        gpu.temp_vy = thrust::raw_pointer_cast(temp_vy.data());
+        gpu.temp_m = thrust::raw_pointer_cast(temp_m.data());
+        gpu.temp_color = thrust::raw_pointer_cast(temp_color.data());
+    }
+};
 
 struct particles_gpu {
     int size;
@@ -52,7 +88,7 @@ struct particles {
 
     void initialize(const configuration& config)
     {
-        gpu.size = config.particles_count;
+        gpu.size = config.count;
         gpu.g = config.g;
         gpu.radius = config.radius;
 
@@ -77,20 +113,19 @@ struct particles {
         gpu.cell = thrust::raw_pointer_cast(d_cell.data());
 
         srand((unsigned int)time(0));
-        for (int i = 0; i < config.particles_count; ++i) {
+        for (int i = 0; i < config.count; ++i) {
             h_index[i] = i;
             h_m[i] = 1.f;
 
-            h_x[i] = rand() % (int)(config.starting_wwidth - 2 * gpu.radius) + gpu.radius;
-            h_y[i] = rand() % (int)(config.starting_wheigth - 2 * gpu.radius) + gpu.radius;
+            h_x[i] = rand() % (int)(config.wwidth - 2 * gpu.radius) + gpu.radius;
+            h_y[i] = rand() % (int)(config.wheigth - 2 * gpu.radius) + gpu.radius;
 
-            h_vx[i] = -config.maxabs_starting_velocity + static_cast <float> (rand()) /
-                (static_cast <float> (RAND_MAX / (2 * config.maxabs_starting_velocity)));;
-            h_vy[i] = -config.maxabs_starting_velocity + static_cast <float> (rand()) /
-                (static_cast <float> (RAND_MAX / (2 * config.maxabs_starting_velocity)));;
+            h_vx[i] = -config.maxabs_starting_xvelocity + static_cast <float> (rand()) /
+                (static_cast <float> (RAND_MAX / (2 * config.maxabs_starting_xvelocity)));;
+            h_vy[i] = -config.maxabs_starting_yvelocity + static_cast <float> (rand()) /
+                (static_cast <float> (RAND_MAX / (2 * config.maxabs_starting_yvelocity)));;
 
             color[i] = glm::vec4((rand() % 256) / 255.0f, (rand() % 256) / 255.0f, (rand() % 256) / 255.0f, 1);
-            //std::cout << "i = " << i << ", vx = " << h_vx[i] << ", vy = " << h_vy[i] << std::endl;
         }
 
         thrust::copy(h_index.begin(), h_index.end(), d_index.begin());
@@ -107,7 +142,6 @@ struct particles {
         size_t size;
         ERROR_CUDA(cudaGraphicsResourceGetMappedPointer(&devPtr, &size, cudaResource));
 
-        //std::cout << "mapped (size = " << size << ") bytes to cuda" << std::endl;
         if (size < gpu.size * sizeof(T))
             MY_ERROR("cudaGraphicsResourceGetMappedPointer: returned size is too small");
         dest = static_cast<T*>(devPtr);
@@ -115,7 +149,6 @@ struct particles {
 
     void unmap(cudaGraphicsResource*& cudaResource)
     {
-        // Step 4: Unmap the buffer for OpenGL
         ERROR_CUDA(cudaGraphicsUnmapResources(1, &cudaResource, 0));
     }
 

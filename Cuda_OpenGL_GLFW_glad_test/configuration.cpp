@@ -2,13 +2,14 @@
 
 void configuration::load_configuration() 
 {
-    starting_wwidth = 1280;
-    starting_wheigth = 720;
+    wwidth = 1280;
+    wheigth = 720;
 
     g = 0.1f; //9.81f;
-    radius = 1;
+    radius = 1.0f;
 
-    particles_count = 100000; // 10000
+    count = 100000; // 10000
 
-    maxabs_starting_velocity = 0.5f;
+    maxabs_starting_xvelocity = 0.5f;
+    maxabs_starting_yvelocity = 0.5f;
 }

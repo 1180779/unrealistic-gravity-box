@@ -7,17 +7,15 @@
 #include <string>
 #include <fstream>
 #include <streambuf>
+#include <sstream>
 
 void shader_files::loadFromFile(std::string& str, std::string& file)
 {
-    std::ifstream t(file);
-
-    t.seekg(0, std::ios::end);
-    vertexShaderSource.reserve(t.tellg());
-    t.seekg(0, std::ios::beg);
-
-    str.assign((std::istreambuf_iterator<char>(t)),
-        std::istreambuf_iterator<char>());
+    std::ifstream inFile(file, std::ios::in);
+    std::ostringstream ss;
+    ss << inFile.rdbuf();
+    str = ss.str();
+    inFile.close();
 }
 
 shader_files::shader_files(std::string vertexFile, std::string fragmentFile, std::string geometryShader)

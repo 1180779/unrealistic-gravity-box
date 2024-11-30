@@ -19,6 +19,8 @@
 
 #include <stdio.h>
 
+#define BLOCK_SIZE 16
+
 // ####################################################################################################################################################################################
     // SHADERS
 
@@ -55,6 +57,34 @@ __global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheig
     p.cell[i] = cell_x * grid_width + cell_y;
 }
 
+__global__ void reorderParticleData(particles_gpu p, particles_temp_gpu p_temp) 
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
+    if (i >= p.size)
+        return;
+    int index = p.index[i];
+    p_temp.temp_x[i] = p.x[index];
+    p_temp.temp_y[i] = p.y[index];
+    p_temp.temp_vx[i] = p.vx[index];
+    p_temp.temp_vy[i] = p.vy[index];
+    p_temp.temp_m[i] = p.m[index];
+    p_temp.temp_color[i] = p.color[index];
+}
+
+__global__ void copyParticleDataBack(particles_gpu p, particles_temp_gpu p_temp)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
+    if (i >= p.size)
+        return;
+
+    p.x[i] = p_temp.temp_x[i];
+    p.y[i] = p_temp.temp_y[i];
+    p.vx[i] = p_temp.temp_vx[i];
+    p.vy[i] = p_temp.temp_vy[i];
+    p.m[i] = p_temp.temp_m[i];
+    p.color[i] = p_temp.temp_color[i];
+}
+
 __global__ void particlesCollisionKernel(particles_gpu p)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
@@ -64,11 +94,11 @@ __global__ void particlesCollisionKernel(particles_gpu p)
     int cell = p.cell[i];
     int j = i + 1;
     int k = i + 1;
-    while (k < p.size && p.cell[k] <= cell + 1 && p.cell[k] >= cell)
+    while (k < p.size && p.cell[k] <= cell + 1)
         ++k;
 
     for (; j < k; ++j) {
-        __syncthreads();
+        //__syncthreads();
         float dist_x = p.x[i] - p.x[j];
         float dist_y = p.y[i] - p.y[j];
         float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
@@ -140,21 +170,19 @@ int main(int, char**)
     // ####################################################################################################################################################################################
     // INITIALIZE AND CONFIGURE
 
-#ifndef SHADER_TESTING
     ERROR_CUDA(cudaSetDevice(0));
-#endif
 
     // load config
     configuration config;
     config.load_configuration();
 
-#ifndef SHADER_TESTING
     particles p;
     p.initialize(config);
-#endif
+    partciles_temp p_temp;
+    p_temp.initalize(p.gpu.size);
 
-    int wwidth = config.starting_wwidth;
-    int wheigth = config.starting_wheigth;
+    int wwidth = config.wwidth;
+    int wheigth = config.wheigth;
 
     // Create window with graphics context
     GLFWwindow* window = glfwCreateWindow(wwidth, wheigth,
@@ -197,7 +225,7 @@ int main(int, char**)
     // SHADERS
 
     std::cout << "Loading shader files..." << std::endl;
-    shader_files shader_files(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE);// , GEOMETRY_SHADER_SOURCE);
+    shader_files shader_files(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE, GEOMETRY_SHADER_SOURCE);
     shader_files.print();
 
     // Compile shaders
@@ -205,16 +233,16 @@ int main(int, char**)
     GLuint vertexShader = compileShader(shader_files.vertexShaderSourceC, GL_VERTEX_SHADER);
     std::cout << "Compiling fragment shader..." << std::endl;
     GLuint fragmentShader = compileShader(shader_files.fragmentShaderSourceC, GL_FRAGMENT_SHADER);
-    //std::cout << "Compiling geometry shader..." << std::endl;
-    //GLuint geomertyShader = compileShader(shader_files.geometryShaderSourceC, GL_GEOMETRY_SHADER);
+    std::cout << "Compiling geometry shader..." << std::endl;
+    GLuint geomertyShader = compileShader(shader_files.geometryShaderSourceC, GL_GEOMETRY_SHADER);
 
     // Link shaders into a program
-    GLuint particleShaderProgram = linkProgram(vertexShader, fragmentShader);
+    GLuint particleShaderProgram = linkProgram(vertexShader, fragmentShader, geomertyShader);
 
     // Clean up
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
-    //glDeleteShader(geomertyShader);
+    glDeleteShader(geomertyShader);
     std::cout << "Shaders loaded!" << std::endl;
 
     // ####################################################################################################################################################################################
@@ -275,6 +303,9 @@ int main(int, char**)
     p.mapFromVBO(cudaResourceY, p.gpu.y);
     p.mapFromVBO(cudaResourceColor, p.gpu.color);
 
+    GLint radiusyLocation = glGetUniformLocation(particleShaderProgram, "radius_x");
+    GLint radiusxLocation = glGetUniformLocation(particleShaderProgram, "radius_y");
+
     std::cout << "Initialized!" << std::endl;
 
     ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
@@ -306,8 +337,6 @@ int main(int, char**)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-#ifndef SHADER_TESTING
-
         glfwGetWindowSize(window, &wwidth, &wheigth);
 
         int cell_size = 50;
@@ -319,44 +348,39 @@ int main(int, char**)
         glUniform1f(screenWidthLoc, wwidth);
         glUniform1f(screenHeightLoc, wheigth);
 
-        dim3 blocks = dim3(p.gpu.size / 16 + 1);
-        dim3 threads = dim3(16);
+        float radius_x = p.gpu.radius / wwidth * 2.0f;
+        float radius_y = p.gpu.radius / wheigth * 2.0f;
+        glUniform1f(radiusxLocation, radius_x);
+        glUniform1f(radiusyLocation, radius_y);
+
+        // update particles locations
+        dim3 blocks = dim3(p.gpu.size / BLOCK_SIZE + 1);
+        dim3 threads = dim3(BLOCK_SIZE);
         updateParticlesKernel<<<blocks, threads>>>(p.gpu, wwidth, wheigth, cell_size, grid_width);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
         
-        //thrust::sort_by_key(p.d_cell.begin(), p.d_cell.end(), p.d_index);
-        //ERROR_CUDA(cudaGetLastError());
-        //ERROR_CUDA(cudaDeviceSynchronize());
-        
-        // Wrap raw pointers with device_pointer_cast
-        //thrust::device_ptr<float> x_ptr(p.gpu.x);
-        //thrust::device_ptr<float> y_ptr(p.gpu.y);
-        //thrust::device_ptr<glm::vec4> color_ptr(p.gpu.color);
-        //thrust::sort_by_key(
-        //    p.d_cell.begin(), p.d_cell.end(), // Key vector
-        //    thrust::make_zip_iterator(
-        //        thrust::make_tuple(
-        //            x_ptr,
-        //            y_ptr,
-        //            p.d_vx.begin(),
-        //            p.d_vy.begin(),
-        //            p.d_m.begin(),
-        //            color_ptr
-        //        )
-        //    ) // Values as a zip iterator
-        //);
-        //ERROR_CUDA(cudaGetLastError());
-        //ERROR_CUDA(cudaDeviceSynchronize());
-
-       /* particlesCollisionKernel<<<blocks, threads>>>(p.gpu);
+        // sort
+        thrust::sort_by_key(p.d_cell.begin(), p.d_cell.end(), p.d_index.begin());
         ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());*/
+        ERROR_CUDA(cudaDeviceSynchronize());
+        
+        reorderParticleData<<<blocks, threads>>>(p.gpu, p_temp.gpu);
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
+
+        copyParticleDataBack<<<blocks, threads>>>(p.gpu, p_temp.gpu);
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
+
+        // collisions
+
+        particlesCollisionKernel<<<blocks, threads>>>(p.gpu);
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
 
         // Step 5: Use the buffer in OpenGL shaders
         //glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer); // Bind buffer for shader use
-
-#endif
 
         {
             ImGui::Begin("Dynamic settings");
