@@ -27,65 +27,8 @@
 
 #include <stdio.h>
 
-// loading shaders from files
-#include <string>
-#include <fstream>
-#include <streambuf>
-
 // ####################################################################################################################################################################################
     // SHADERS
-
-class shader_files {
-private:
-    std::string vertexShaderSource;
-    std::string fragmentShaderSource;
-    std::string geometryShaderSource;
-
-    void loadFromFile(std::string &str, std::string &file) 
-    {
-        std::ifstream t(file);
-
-        t.seekg(0, std::ios::end);
-        vertexShaderSource.reserve(t.tellg());
-        t.seekg(0, std::ios::beg);
-
-        str.assign((std::istreambuf_iterator<char>(t)),
-            std::istreambuf_iterator<char>());
-    }
-
-public:
-    const char* vertexShaderSourceC = NULL;
-    const char* fragmentShaderSourceC = NULL;
-    const char* geometryShaderSourceC = NULL;
-
-    shader_files(std::string vertexFile, std::string fragmentFile, std::string geometryShader = "")
-    {
-        loadFromFile(vertexShaderSource, vertexFile);
-        vertexShaderSourceC = vertexShaderSource.c_str();
-
-        loadFromFile(fragmentShaderSource, fragmentFile);
-        fragmentShaderSourceC = fragmentShaderSource.c_str();
-
-        if (geometryShader != "") {
-            loadFromFile(geometryShaderSource, fragmentFile);
-            geometryShaderSourceC = fragmentShaderSource.c_str();
-        }
-    }
-
-    void print()
-    {
-        std::cout << "vertex shader: \"\n";
-        std::cout << vertexShaderSourceC << "\"\n\n";
-
-        std::cout << "fragment shader: \"\n";
-        std::cout << fragmentShaderSourceC << "\"\n\n";
-
-        if (geometryShaderSourceC != NULL) {
-            std::cout << "geometry shader: \"\n";
-            std::cout << geometryShaderSourceC << "\"\n\n";
-        }
-    }
-};
 
 #ifndef SHADER_TESTING
 
@@ -276,12 +219,16 @@ int main(int, char**)
     // ####################################################################################################################################################################################
     // SHADERS
 
-    shader_files shader_files(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE);
+    shader_files shader_files(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE);// , GEOMETRY_SHADER_SOURCE);
     shader_files.print();
 
     // Compile shaders
+    std::cout << "Compiling vertex shader..." << std::endl;
     GLuint vertexShader = compileShader(shader_files.vertexShaderSourceC, GL_VERTEX_SHADER);
+    std::cout << "Compiling fragment shader..." << std::endl;
     GLuint fragmentShader = compileShader(shader_files.fragmentShaderSourceC, GL_FRAGMENT_SHADER);
+    //std::cout << "Compiling geometry shader..." << std::endl;
+    //GLuint geomertyShader = compileShader(shader_files.geometryShaderSourceC, GL_GEOMETRY_SHADER);
 
     // Link shaders into a program
     GLuint particleShaderProgram = linkProgram(vertexShader, fragmentShader);
@@ -289,6 +236,7 @@ int main(int, char**)
     // Clean up
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
+    //glDeleteShader(geomertyShader);
 
     // ####################################################################################################################################################################################
     // DRAWING???
@@ -487,7 +435,7 @@ int main(int, char**)
         // Bind the VAO so OpenGL knows to use it
         glBindVertexArray(VAO);
         // Draw the triangle using the GL_TRIANGLES primitive
-        glDrawArrays(GL_TRIANGLES, 0, p.gpu.size);
+        glDrawArrays(GL_POINTS, 0, p.gpu.size);
 #endif
 #ifdef SHADER_TEST_1
         // Tell OpenGL which Shader Program we want to use

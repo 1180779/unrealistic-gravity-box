@@ -83,7 +83,7 @@
     <None Include="shaders\cuda.frag">
       <Filter>shaders</Filter>
     </None>
-    <None Include="cuda.geom">
+    <None Include="shaders\cuda.geom">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>

@@ -110,8 +110,8 @@
     <ClInclude Include="shaders.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="cuda.geom" />
     <None Include="shaders\cuda.frag" />
+    <None Include="shaders\cuda.geom" />
     <None Include="shaders\cuda.vert" />
     <None Include="shaders\simple.frag" />
     <None Include="shaders\simple.vert" />
