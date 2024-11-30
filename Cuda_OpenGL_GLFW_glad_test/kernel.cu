@@ -1,12 +1,13 @@
 ﻿
-#define SHADER_TESTING
-#define SHADER_TEST_1
+//#define SHADER_TESTING
+//#define SHADER_TEST_1
 
 #include <glad/glad.h>
 #include "shaders.hpp"
 
 #ifndef SHADER_TESTING
 
+#include "error_macros.h"
 #include "logic.cpp"
 #include <glm/glm.hpp>
 
@@ -18,6 +19,7 @@
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include "cuda_gl_interop.h" // openGL interopperability
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
@@ -37,6 +39,7 @@ class shader_files {
 private:
     std::string vertexShaderSource;
     std::string fragmentShaderSource;
+    std::string geometryShaderSource;
 
     void loadFromFile(std::string &str, std::string &file) 
     {
@@ -51,16 +54,22 @@ private:
     }
 
 public:
-    const char* vertexShaderSourceC;
-    const char* fragmentShaderSourceC;
+    const char* vertexShaderSourceC = NULL;
+    const char* fragmentShaderSourceC = NULL;
+    const char* geometryShaderSourceC = NULL;
 
-    shader_files(std::string vertexFile, std::string fragmentFile) 
+    shader_files(std::string vertexFile, std::string fragmentFile, std::string geometryShader = "")
     {
         loadFromFile(vertexShaderSource, vertexFile);
         vertexShaderSourceC = vertexShaderSource.c_str();
 
         loadFromFile(fragmentShaderSource, fragmentFile);
         fragmentShaderSourceC = fragmentShaderSource.c_str();
+
+        if (geometryShader != "") {
+            loadFromFile(geometryShaderSource, fragmentFile);
+            geometryShaderSourceC = fragmentShaderSource.c_str();
+        }
     }
 
     void print()
@@ -70,8 +79,21 @@ public:
 
         std::cout << "fragment shader: \"\n";
         std::cout << fragmentShaderSourceC << "\"\n\n";
+
+        if (geometryShaderSourceC != NULL) {
+            std::cout << "geometry shader: \"\n";
+            std::cout << geometryShaderSourceC << "\"\n\n";
+        }
     }
 };
+
+#ifndef SHADER_TESTING
+
+#define VERTEX_SHADER_SOURCE "shaders/cuda.vert"
+#define FRAGMENT_SHADER_SOURCE "shaders/cuda.frag"
+#define GEOMETRY_SHADER_SOURCE "shaders/cuda.geom"
+
+#endif
 
 
 #ifdef SHADER_TEST_1
@@ -81,43 +103,7 @@ public:
 
 #endif
 
-#ifndef SHADER_TESTING
-
-const char* vertexShaderSource = R"(
-    #version 330 core
-    layout (location = 0) in vec2 aPos;
-    layout (location = 1) in float aRadius;
-    uniform mat4 uProjection;
-
-    void main() {
-        gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
-        gl_PointSize = aRadius;
-    }
-)";
-
-const char* fragmentShaderSource = R"(
-    #version 330 core
-    out vec4 FragColor;
-    uniform vec4 uColor;
-
-    void main() {
-        FragColor = uColor;
-    }
-)";
-
-#endif
-
 // ####################################################################################################################################################################################
-
-#define MY_ERROR(source) perror(source), fprintf("file: %s, line: %d\n", __LINE__, __FILE__), exit(-1)
-#define ERROR_CUDA(status) do { \
-            if(status != cudaSuccess) \
-            { \
-                fprintf(stderr, "error: %s\n",  cudaGetErrorString(status)); \
-                fprintf(stderr, "file: %s, line: %d\n", __FILE__, __LINE__); \
-                exit(-1); \
-            } \
-        } while(0)
 
 #ifndef SHADER_TESTING
 
@@ -164,7 +150,7 @@ __global__ void particlesCollisionKernel(particles_gpu p)
         float dist_x = p.x[i] - p.x[j];
         float dist_y = p.y[i] - p.y[j];
         float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
-        if (dist <= p.radius[i] + p.radius[j]) {
+        if (dist <= 2*p.radius) {
             float norm_x = dist_x / dist;
             float norm_y = dist_y / dist;
 
@@ -290,8 +276,6 @@ int main(int, char**)
     // ####################################################################################################################################################################################
     // SHADERS
 
-#ifdef SHADER_TEST_1
-
     shader_files shader_files(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE);
     shader_files.print();
 
@@ -308,6 +292,51 @@ int main(int, char**)
 
     // ####################################################################################################################################################################################
     // DRAWING???
+
+    p.initialize(config);
+
+    // Create reference containers for the Vartex Array Object and the Vertex Buffer Object
+    GLuint VAO, VBO[3];
+
+    // Generate the VAO and VBO with only 1 object each
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(3, VBO);
+
+    // Make the VAO the current Vertex Array Object by binding it
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * p.gpu.size,  p.h_x.data(), GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * p.gpu.size, p.h_y.data(), GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 4 * p.gpu.size, p.color.data(), GL_DYNAMIC_DRAW);
+
+    // register the buffers with CUDA
+    cudaGraphicsResource* cudaResource1;
+    ERROR_CUDA(cudaGraphicsGLRegisterBuffer(&cudaResource1, VBO[0], cudaGraphicsMapFlagsNone));
+    cudaGraphicsResource* cudaResource2;
+    ERROR_CUDA(cudaGraphicsGLRegisterBuffer(&cudaResource2, VBO[1], cudaGraphicsMapFlagsNone));
+
+    // Bind the VBO as a vertex attribute
+    // VBO[0]: x_position
+    glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+    glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0); // Enable location 0 (x_position)
+
+    // VBO[1]: y_position
+    glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1); // Enable location 1 (y_position)
+
+    // VBO[2]: color_data
+    glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(2); // Enable location 2 (color_data)
+
+#ifdef SHADER_TEST_1
 
     GLfloat vertices[] =
     {
@@ -385,34 +414,47 @@ int main(int, char**)
         int cell_size = 50;
         int grid_width = (int)ceil(wwidth / cell_size);
 
+        GLint screenWidthLoc = glGetUniformLocation(particleShaderProgram, "screenWidth");
+        GLint screenHeightLoc = glGetUniformLocation(particleShaderProgram, "screenHeight");
+
+        glUniform1f(screenWidthLoc, wwidth);
+        glUniform1f(screenHeightLoc, wheigth);
+
+        p.mapFromVBO(cudaResource1, p.gpu.x);
+        p.mapFromVBO(cudaResource2, p.gpu.y);
+
         dim3 blocks = dim3(p.gpu.size / 16 + 1);
         dim3 threads = dim3(16);
         updateParticlesKernel<<<blocks, threads>>>(p.gpu, wwidth, wheigth, cell_size, grid_width);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 
-        thrust::sort_by_key(
-            p.d_cell.begin(), p.d_cell.end(), // Key vector
-            thrust::make_zip_iterator(
-                thrust::make_tuple(
-                    p.d_x.begin(),
-                    p.d_y.begin(),
-                    p.d_vx.begin(),
-                    p.d_vy.begin(),
-                    p.d_m.begin(),
-                    p.d_radius.begin()
-                )
-            ) // Values as a zip iterator
-        );
+        p.unmap(cudaResource1);
+        p.unmap(cudaResource2);
+        
+        //thrust::sort_by_key(
+        //    p.d_cell.begin(), p.d_cell.end(), // Key vector
+        //    thrust::make_zip_iterator(
+        //        thrust::make_tuple(
+        //            p.d_x.begin(),
+        //            p.d_y.begin(),
+        //            p.d_vx.begin(),
+        //            p.d_vy.begin(),
+        //            p.d_m.begin(),
+        //            p.d_radius.begin()
+        //        )
+        //    ) // Values as a zip iterator
+        //);
 
+        //ERROR_CUDA(cudaGetLastError());
+        //ERROR_CUDA(cudaDeviceSynchronize());
+
+        /*particlesCollisionKernel<<<blocks, threads>>>(p.gpu);
         ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
+        ERROR_CUDA(cudaDeviceSynchronize());*/
 
-        particlesCollisionKernel<<<blocks, threads>>>(p);
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
-
-        p.copy_results_back();
+        // Step 5: Use the buffer in OpenGL shaders
+        //glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer); // Bind buffer for shader use
 
 #endif
 
@@ -434,6 +476,19 @@ int main(int, char**)
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
+#ifndef SHADER_TEST
+
+        // Use the buffer in OpenGL
+        /*glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer);*/
+
+
+        // Tell OpenGL which Shader Program we want to use
+        glUseProgram(particleShaderProgram);
+        // Bind the VAO so OpenGL knows to use it
+        glBindVertexArray(VAO);
+        // Draw the triangle using the GL_TRIANGLES primitive
+        glDrawArrays(GL_TRIANGLES, 0, p.gpu.size);
+#endif
 #ifdef SHADER_TEST_1
         // Tell OpenGL which Shader Program we want to use
         glUseProgram(particleShaderProgram);

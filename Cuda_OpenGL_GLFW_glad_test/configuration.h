@@ -7,6 +7,7 @@ public:
 
     float g;
     float maxabs_starting_velocity; // in pixels per frame
+    float radius;
 
     int particles_count;
 

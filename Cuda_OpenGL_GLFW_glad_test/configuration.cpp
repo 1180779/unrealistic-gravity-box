@@ -6,8 +6,9 @@ void configuration::load_configuration()
     starting_wheigth = 720;
 
     g = -0.2f; //9.81f;
+    radius = 1;
 
-    particles_count = 100000; // 10000
+    particles_count = 30; // 10000
 
     maxabs_starting_velocity = 0.5f;
 }

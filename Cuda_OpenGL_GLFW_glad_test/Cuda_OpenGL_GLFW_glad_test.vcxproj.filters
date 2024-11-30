@@ -68,12 +68,22 @@
     </ClInclude>
     <ClInclude Include="configuration.h" />
     <ClInclude Include="shaders.hpp" />
+    <ClInclude Include="error_macros.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\simple.vert">
       <Filter>shaders</Filter>
     </None>
     <None Include="shaders\simple.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\cuda.vert">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\cuda.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="cuda.geom">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>
