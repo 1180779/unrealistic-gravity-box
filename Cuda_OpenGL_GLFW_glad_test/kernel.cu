@@ -67,8 +67,8 @@ __global__ void particlesCollisionKernel(particles_gpu p)
     while (k < p.size && p.cell[k] <= cell + 1 && p.cell[k] >= cell)
         ++k;
 
-
     for (; j < k; ++j) {
+        __syncthreads();
         float dist_x = p.x[i] - p.x[j];
         float dist_y = p.y[i] - p.y[j];
         float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
@@ -196,6 +196,7 @@ int main(int, char**)
     // ####################################################################################################################################################################################
     // SHADERS
 
+    std::cout << "Loading shader files..." << std::endl;
     shader_files shader_files(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE);// , GEOMETRY_SHADER_SOURCE);
     shader_files.print();
 
@@ -214,10 +215,12 @@ int main(int, char**)
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
     //glDeleteShader(geomertyShader);
+    std::cout << "Shaders loaded!" << std::endl;
 
     // ####################################################################################################################################################################################
     // DRAWING???
 
+    std::cout << "Initializing..." << std::endl;
     p.initialize(config);
 
     // Create reference containers for the Vartex Array Object and the Vertex Buffer Object
@@ -272,6 +275,8 @@ int main(int, char**)
     p.mapFromVBO(cudaResourceY, p.gpu.y);
     p.mapFromVBO(cudaResourceColor, p.gpu.color);
 
+    std::cout << "Initialized!" << std::endl;
+
     ImVec4 clear_color = ImVec4(0.f, 0.f, 0.f, 1.00f);
 
     // Main loop
@@ -320,11 +325,14 @@ int main(int, char**)
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
         
-
+        //thrust::sort_by_key(p.d_cell.begin(), p.d_cell.end(), p.d_index);
+        //ERROR_CUDA(cudaGetLastError());
+        //ERROR_CUDA(cudaDeviceSynchronize());
+        
         // Wrap raw pointers with device_pointer_cast
-        //auto x_ptr = thrust::device_pointer_cast(p.gpu.x);
-        //auto y_ptr = thrust::device_pointer_cast(p.gpu.y);
-        //auto color_ptr = thrust::device_pointer_cast(p.gpu.color);
+        //thrust::device_ptr<float> x_ptr(p.gpu.x);
+        //thrust::device_ptr<float> y_ptr(p.gpu.y);
+        //thrust::device_ptr<glm::vec4> color_ptr(p.gpu.color);
         //thrust::sort_by_key(
         //    p.d_cell.begin(), p.d_cell.end(), // Key vector
         //    thrust::make_zip_iterator(
@@ -341,9 +349,9 @@ int main(int, char**)
         //ERROR_CUDA(cudaGetLastError());
         //ERROR_CUDA(cudaDeviceSynchronize());
 
-        //particlesCollisionKernel<<<blocks, threads>>>(p.gpu);
-        //ERROR_CUDA(cudaGetLastError());
-        //ERROR_CUDA(cudaDeviceSynchronize());
+       /* particlesCollisionKernel<<<blocks, threads>>>(p.gpu);
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());*/
 
         // Step 5: Use the buffer in OpenGL shaders
         //glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer); // Bind buffer for shader use

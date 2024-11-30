@@ -23,6 +23,7 @@ struct particles_gpu {
     float g;
     float radius;
 
+    int* index;
     float* x;
     float* y;
     float* vx;
@@ -35,6 +36,7 @@ struct particles_gpu {
 struct particles {
     particles_gpu gpu;
 
+    thrust::host_vector<int> h_index;
     thrust::host_vector<float> h_x;
     thrust::host_vector<float> h_y;
     thrust::host_vector<float> h_vx;
@@ -42,6 +44,7 @@ struct particles {
     thrust::host_vector<float> h_m;
     std::vector<glm::vec4> color;
 
+    thrust::device_vector<int> d_index;
     thrust::device_vector<float> d_vx;
     thrust::device_vector<float> d_vy;
     thrust::device_vector<float> d_m;
@@ -53,6 +56,7 @@ struct particles {
         gpu.g = config.g;
         gpu.radius = config.radius;
 
+        h_index = thrust::host_vector<int>(gpu.size);
         h_x = thrust::host_vector<float>(gpu.size);
         h_y = thrust::host_vector<float>(gpu.size);
         h_vx = thrust::host_vector<float>(gpu.size);
@@ -60,12 +64,13 @@ struct particles {
         h_m = thrust::host_vector<float>(gpu.size);
         color.resize(gpu.size);
 
-
+        d_index = thrust::device_vector<float>(gpu.size);
         d_vx = thrust::device_vector<float>(gpu.size);
         d_vy = thrust::device_vector<float>(gpu.size);
         d_m = thrust::device_vector<float>(gpu.size);
         d_cell = thrust::device_vector<int>(gpu.size);
 
+        gpu.index = thrust::raw_pointer_cast(d_index.data());
         gpu.vx = thrust::raw_pointer_cast(d_vx.data());
         gpu.vy = thrust::raw_pointer_cast(d_vy.data());
         gpu.m = thrust::raw_pointer_cast(d_m.data());
@@ -73,6 +78,7 @@ struct particles {
 
         srand((unsigned int)time(0));
         for (int i = 0; i < config.particles_count; ++i) {
+            h_index[i] = i;
             h_m[i] = 1.f;
 
             h_x[i] = rand() % (int)(config.starting_wwidth - 2 * gpu.radius) + gpu.radius;
@@ -87,6 +93,7 @@ struct particles {
             //std::cout << "i = " << i << ", vx = " << h_vx[i] << ", vy = " << h_vy[i] << std::endl;
         }
 
+        thrust::copy(h_index.begin(), h_index.end(), d_index.begin());
         thrust::copy(h_vx.begin(), h_vx.end(), d_vx.begin());
         thrust::copy(h_vy.begin(), h_vy.end(), d_vy.begin());
         thrust::copy(h_m.begin(), h_m.end(), d_m.begin());
