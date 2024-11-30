@@ -1,4 +1,7 @@
-#pragma once
+
+#ifndef _CONFIGURATION_1180779_
+#define _CONFIGURATION_1180779_
+
 class configuration
 {
 public:
@@ -15,3 +18,4 @@ public:
     void load_configuration();
 };
 
+#endif

@@ -1,4 +1,6 @@
-#pragma once
+
+#ifndef _SHADERS_1180779_
+#define _SHADERS_1180779_
 
 #include <glad/glad.h>
 
@@ -22,3 +24,5 @@ public:
 
 GLuint compileShader(const char* source, GLenum shaderType);
 GLuint linkProgram(GLuint vertexShader, GLuint fragmentShader, GLuint geometryShader = -1);
+
+#endif

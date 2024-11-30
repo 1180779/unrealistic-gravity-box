@@ -1,0 +1,87 @@
+
+#ifndef _LOGIC_1180779_
+#define _LOGIC_1180779_
+
+#include "configuration.hpp"
+
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+
+#include <glm/glm.hpp>
+
+struct particles_temp_gpu {
+    float* temp_x;
+    float* temp_y;
+    float* temp_vx;
+    float* temp_vy;
+    float* temp_m;
+    glm::vec4* temp_color;
+};
+
+struct partciles_temp {
+    particles_temp_gpu gpu;
+
+    thrust::device_vector<float> temp_x;
+    thrust::device_vector<float> temp_y;
+    thrust::device_vector<float> temp_vx;
+    thrust::device_vector<float> temp_vy;
+    thrust::device_vector<float> temp_m;
+    thrust::device_vector<glm::vec4> temp_color;
+
+    void initalize(int size);
+};
+
+struct particles_gpu {
+    int size;
+    float g;
+    float radius;
+
+    int* index;
+    float* x;
+    float* y;
+    float* vx;
+    float* vy;
+    float* m;
+    int* cell;
+    glm::vec4* color;
+};
+
+struct particles {
+    particles_gpu gpu;
+
+    thrust::host_vector<int> h_index;
+    thrust::host_vector<float> h_x;
+    thrust::host_vector<float> h_y;
+    thrust::host_vector<float> h_vx;
+    thrust::host_vector<float> h_vy;
+    thrust::host_vector<float> h_m;
+    std::vector<glm::vec4> color;
+
+    thrust::device_vector<int> d_index;
+    thrust::device_vector<float> d_vx;
+    thrust::device_vector<float> d_vy;
+    thrust::device_vector<float> d_m;
+    thrust::device_vector<int> d_cell;
+
+    void initialize(const configuration& config);
+
+    template <typename T>
+    void mapFromVBO(cudaGraphicsResource*& cudaResource, T*& dest)
+    {
+        ERROR_CUDA(cudaGraphicsMapResources(1, &cudaResource, 0));
+        void* devPtr;
+        size_t size;
+        ERROR_CUDA(cudaGraphicsResourceGetMappedPointer(&devPtr, &size, cudaResource));
+
+        if (size < gpu.size * sizeof(T))
+            ERROR("cudaGraphicsResourceGetMappedPointer: returned size is too small");
+        dest = static_cast<T*>(devPtr);
+    }
+
+    void unmap(cudaGraphicsResource*& cudaResource);
+
+    // for debugging purposes 
+    void copy_back();
+};
+
+#endif

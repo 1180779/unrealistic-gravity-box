@@ -2,7 +2,9 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <CudaCompile Include="kernel.cu" />
-    <CudaCompile Include="logic.cpp" />
+    <CudaCompile Include="logic.cpp">
+      <Filter>cpp</Filter>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="imgui\imgui_widgets.cpp">
@@ -26,10 +28,14 @@
     <ClCompile Include="imgui\imgui_impl_opengl3.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
-    <ClCompile Include="configuration.cpp" />
-    <ClCompile Include="shaders.cpp" />
     <ClCompile Include="glad.c">
       <Filter>opengl</Filter>
+    </ClCompile>
+    <ClCompile Include="configuration.cpp">
+      <Filter>cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="shaders.cpp">
+      <Filter>cpp</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -41,6 +47,12 @@
     </Filter>
     <Filter Include="opengl">
       <UniqueIdentifier>{faa7a0cc-54a6-431a-956d-faf65e228a7c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers">
+      <UniqueIdentifier>{175dc9b7-635b-43f1-9cc5-8376022e56ea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="cpp">
+      <UniqueIdentifier>{760ff696-ffa0-45a3-a90d-1df235fa4857}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -71,10 +83,18 @@
     <ClInclude Include="imgui\imgui_impl_opengl3_loader.h">
       <Filter>imgui</Filter>
     </ClInclude>
-    <ClInclude Include="configuration.h" />
-    <ClInclude Include="shaders.hpp" />
-    <ClInclude Include="error_macros.h" />
-    <ClInclude Include="logic.hpp" />
+    <ClInclude Include="shaders.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="logic.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="configuration.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="error_macros.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\simple.vert">

@@ -1,11 +1,12 @@
 ﻿
 #include <glad/glad.h>
+
+#include "error_macros.hpp"
+#include "configuration.hpp"
+#include "logic.hpp"
 #include "shaders.hpp"
 
-#include "error_macros.h"
-#include "logic.cpp"
-
-#include "configuration.h"
+#include <stdio.h>
 
 #include "thrust/sort.h"
 
@@ -17,7 +18,6 @@
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
 
-#include <stdio.h>
 
 #define BLOCK_SIZE 16
 

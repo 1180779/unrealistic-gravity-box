@@ -107,8 +107,8 @@
     <ClCompile Include="shaders.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="configuration.h" />
-    <ClInclude Include="error_macros.h" />
+    <ClInclude Include="configuration.hpp" />
+    <ClInclude Include="error_macros.hpp" />
     <ClInclude Include="imgui\imconfig.h" />
     <ClInclude Include="imgui\imgui.h" />
     <ClInclude Include="imgui\imgui_impl_glfw.h" />

@@ -1,4 +1,4 @@
-#include "configuration.h"
+#include "configuration.hpp"
 
 void configuration::load_configuration() 
 {
