@@ -12,11 +12,11 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
-#include <thrust/transform.h>
 
 #include <glm/glm.hpp>
 
 #include <vector>
+
 
 struct particles_gpu {
     int size;

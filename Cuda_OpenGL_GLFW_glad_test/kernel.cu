@@ -9,7 +9,7 @@
 
 #include "error_macros.h"
 #include "logic.cpp"
-#include <glm/glm.hpp>
+//#include <glm/glm.hpp>
 
 #endif
 
@@ -84,7 +84,7 @@ __global__ void particlesCollisionKernel(particles_gpu p)
 
     int cell = p.cell[i];
     int j = i + 1;
-    int k = i;
+    int k = i + 1;
     while (k < p.size && p.cell[k] <= cell + 1)
         ++k;
 
@@ -284,6 +284,11 @@ int main(int, char**)
     glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(2); // Enable location 2 (color_data)
 
+    // Tell OpenGL which Shader Program we want to use
+    glUseProgram(particleShaderProgram);
+    // Bind the VAO so OpenGL knows to use it
+    glBindVertexArray(VAO);
+
 #ifdef SHADER_TEST_1
 
     GLfloat vertices[] =
@@ -376,30 +381,32 @@ int main(int, char**)
         updateParticlesKernel<<<blocks, threads>>>(p.gpu, wwidth, wheigth, cell_size, grid_width);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
-
-        p.unmap(cudaResource1);
-        p.unmap(cudaResource2);
         
+
+        // Wrap raw pointers with device_pointer_cast
+        //auto x_ptr = thrust::device_pointer_cast(p.gpu.x);
+        //auto y_ptr = thrust::device_pointer_cast(p.gpu.y);
         //thrust::sort_by_key(
         //    p.d_cell.begin(), p.d_cell.end(), // Key vector
         //    thrust::make_zip_iterator(
         //        thrust::make_tuple(
-        //            p.d_x.begin(),
-        //            p.d_y.begin(),
+        //            x_ptr,
+        //            y_ptr,
         //            p.d_vx.begin(),
         //            p.d_vy.begin(),
-        //            p.d_m.begin(),
-        //            p.d_radius.begin()
+        //            p.d_m.begin()
         //        )
         //    ) // Values as a zip iterator
         //);
-
         //ERROR_CUDA(cudaGetLastError());
         //ERROR_CUDA(cudaDeviceSynchronize());
 
-        /*particlesCollisionKernel<<<blocks, threads>>>(p.gpu);
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());*/
+        //particlesCollisionKernel<<<blocks, threads>>>(p.gpu);
+        //ERROR_CUDA(cudaGetLastError());
+        //ERROR_CUDA(cudaDeviceSynchronize());
+
+        p.unmap(cudaResource1);
+        p.unmap(cudaResource2);
 
         // Step 5: Use the buffer in OpenGL shaders
         //glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer); // Bind buffer for shader use
@@ -429,11 +436,6 @@ int main(int, char**)
         // Use the buffer in OpenGL
         /*glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer);*/
 
-
-        // Tell OpenGL which Shader Program we want to use
-        glUseProgram(particleShaderProgram);
-        // Bind the VAO so OpenGL knows to use it
-        glBindVertexArray(VAO);
         // Draw the triangle using the GL_TRIANGLES primitive
         glDrawArrays(GL_POINTS, 0, p.gpu.size);
 #endif
