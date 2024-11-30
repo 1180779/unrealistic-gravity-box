@@ -81,7 +81,7 @@ __global__ void copyParticleDataBack(particles_gpu p, particles_temp_gpu p_temp)
     p.color[i] = p_temp.temp_color[i];
 }
 
-__global__ void particlesCollisionKernel(particles_gpu p)
+__global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int grid_height)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
     if (i >= p.size)
@@ -98,7 +98,7 @@ __global__ void particlesCollisionKernel(particles_gpu p)
         float dist_x = p.x[i] - p.x[j];
         float dist_y = p.y[i] - p.y[j];
         float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
-        if (dist <= 2*p.radius) {
+        if (dist <= p.radius) {
             float norm_x = dist_x / dist;
             float norm_y = dist_y / dist;
 
@@ -117,6 +117,9 @@ __global__ void particlesCollisionKernel(particles_gpu p)
             p.vx[j] -= impulse * p.m[j] * norm_y;
         }
     }
+    int cell_x = p.x[i] / cell_size;
+    int cell_y = p.y[i] / cell_size;
+    p.cell[i] = cell_x + cell_y * grid_height;
 }
 
 #pragma endregion KERNELS
@@ -367,6 +370,8 @@ int main(int, char**)
         std::min(wwidth, wheigth) );
     int grid_width = static_cast<int>(
         ceil(static_cast<double>(wwidth) / static_cast<double>(cell_size)) );
+    int grid_heigth = static_cast<int>(
+        ceil(static_cast<double>(wheigth) / static_cast<double>(cell_size)));
 
     std::cout << "Starting simulation..." << std::endl;
 
@@ -419,8 +424,26 @@ int main(int, char**)
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 
-        // collisions
-        particlesCollisionKernel<<<blocks, threads>>>(p.gpu);
+        // collisions in x axis
+        particlesCollisionKernel<<<blocks, threads>>>(p.gpu, cell_size, grid_heigth);
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
+
+        // sort indexes and copy the data back and forth
+        thrust::sort_by_key(p.d_cell.begin(), p.d_cell.end(), p.d_index.begin());
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
+
+        reorderParticleData<<<blocks, threads>>>(p.gpu, p_temp.gpu);
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
+
+        copyParticleDataBack<<<blocks, threads>>>(p.gpu, p_temp.gpu);
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
+
+        // collisions in y axis
+        particlesCollisionKernel<<<blocks, threads>>>(p.gpu, cell_size, grid_heigth);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 
