@@ -23,7 +23,8 @@
 
 #define VERTEX_SHADER_SOURCE "shaders/cuda.vert"
 #define FRAGMENT_SHADER_SOURCE "shaders/cuda.frag"
-#define GEOMETRY_SHADER_SOURCE "shaders/cuda.geom"
+//#define GEOMETRY_SHADER_SOURCE "shaders/cuda.geom"
+#define GEOMETRY_SHADER_SOURCE "shaders/cuda_circle.geom"
 
 #pragma region KERNELS
 
@@ -38,14 +39,14 @@ __global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheig
     p.vy[i] -= p.g * p.m[i];
 
     // check window bounds
-    if (p.x[i] >= wwidth)
+    if (p.x[i] >= wwidth - p.radius)
         p.vx[i] = -abs(p.vx[i]);
-    if (p.x[i] <= 0.f)
+    if (p.x[i] <= 0.f + p.radius)
         p.vx[i] = abs(p.vx[i]);
 
     //if (p.y[i] >= wheight)
     //    p.vy[i] = -abs(p.vy[i]);
-    if (p.y[i] <= 0.f)
+    if (p.y[i] <= 0.f + p.radius)
         p.vy[i] = abs(p.vy[i]);
 
     int cell_x = p.x[i] / cell_size;
@@ -99,22 +100,22 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
         float dist_y = p.y[i] - p.y[j];
         float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
         if (dist <= p.radius) {
-            float norm_x = dist_x / dist;
-            float norm_y = dist_y / dist;
+            float contact_angle = atan2(dist_y, dist_x);
 
-            float rel_vx = p.vx[i] - p.vx[j];
-            float rel_vy = p.vy[i] - p.vy[j];
+            float vi_norm = p.vx[i] * cos(contact_angle) + p.vy[i] * sin(contact_angle);
+            float vi_tang = -p.vx[i] * sin(contact_angle) + p.vy[i] * cos(contact_angle);
 
-            float rel_v = rel_vx * norm_x + rel_vy * norm_y;
-            if (rel_v > 0) // are moving in opposite direction
-                continue;
-            float impulse = (2.0f * rel_v) / (p.m[i] * p.m[j]);
+            float vj_norm = p.vx[j] * cos(contact_angle) + p.vy[j] * sin(contact_angle);
+            float vj_tang = -p.vx[j] * sin(contact_angle) + p.vy[j] * cos(contact_angle);
 
-            p.vx[i] -= impulse * p.m[i] * norm_x;
-            p.vx[i] -= impulse * p.m[i] * norm_y;
+            float vi_norm_new = vi_norm * (p.m[i] - p.m[j]) + 2 * p.m[j] * vj_norm / (p.m[i] + p.m[j]);
+            float vj_norm_new = vj_norm * (p.m[j] - p.m[i]) + 2 * p.m[i] * vi_norm / (p.m[i] + p.m[j]);
 
-            p.vx[j] -= impulse * p.m[j] * norm_x;
-            p.vx[j] -= impulse * p.m[j] * norm_y;
+            p.vx[i] = vi_norm_new * cos(contact_angle) - vi_tang * sin(contact_angle);
+            p.vy[i] = vi_norm_new * sin(contact_angle) + vi_tang * cos(contact_angle);
+
+            p.vx[j] = vj_norm_new * cos(contact_angle) - vj_tang * sin(contact_angle);
+            p.vy[j] = vj_norm_new * sin(contact_angle) + vj_tang * cos(contact_angle);
         }
     }
     int cell_x = p.x[i] / cell_size;

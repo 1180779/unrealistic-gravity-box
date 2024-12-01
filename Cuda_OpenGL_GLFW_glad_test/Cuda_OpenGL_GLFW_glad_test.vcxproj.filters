@@ -112,5 +112,8 @@
     <None Include="shaders\cuda.frag">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\cuda_circle.geom">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

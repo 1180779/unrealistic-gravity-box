@@ -89,6 +89,9 @@
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
     </CudaCompile>
+    <PostBuildEvent>
+      <Command>xcopy "$(ProjectDir)shaders" "$(OutDir)shaders" /y /e /i</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="kernel.cu" />
@@ -127,6 +130,7 @@
     </None>
     <None Include="shaders\cuda.geom" />
     <None Include="shaders\cuda.vert" />
+    <None Include="shaders\cuda_circle.geom" />
     <None Include="shaders\simple.frag" />
     <None Include="shaders\simple.vert" />
   </ItemGroup>
