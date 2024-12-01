@@ -448,7 +448,7 @@ int main(int, char**)
         ERROR_CUDA(cudaDeviceSynchronize());
 
 #ifdef DEBUG
-        p.copy_back();
+        //p.copy_back();
 #endif
 
         {
