@@ -61,7 +61,7 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <AdditionalOptions>--expt-relaxed-constexpr %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>--expt-relaxed-constexpr --extended-lambda %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
     <PreBuildEvent>
       <Command>
@@ -88,6 +88,7 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <AdditionalOptions>--expt-relaxed-constexpr --extended-lambda %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
     <PostBuildEvent>
       <Command>xcopy "$(ProjectDir)shaders" "$(OutDir)shaders" /y /e /i</Command>

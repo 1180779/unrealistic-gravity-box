@@ -9,7 +9,10 @@
 
 #include <glm/glm.hpp>
 
-struct particles_temp_gpu {
+#define CELL_BUFFER 2 // aditional entries in 
+
+struct particles_temp_gpu 
+{
     float* temp_x;
     float* temp_y;
     float* temp_vx;
@@ -18,7 +21,8 @@ struct particles_temp_gpu {
     glm::vec4* temp_color;
 };
 
-struct partciles_temp {
+struct partciles_temp 
+{
     particles_temp_gpu gpu;
 
     thrust::device_vector<float> temp_x;
@@ -31,7 +35,8 @@ struct partciles_temp {
     void initalize(int size);
 };
 
-struct particles_gpu {
+struct particles_gpu 
+{
     int size;
     float g;
     float radius;
@@ -48,7 +53,8 @@ struct particles_gpu {
     glm::vec4* color;
 };
 
-struct particles {
+struct particles 
+{
     int cell_count;
     int cell_size;
     particles_gpu gpu;
@@ -97,7 +103,8 @@ struct particles {
 
     void unmap(cudaGraphicsResource*& cudaResource);
 
-    void getCellIndexes();
+    int getCellIndexesPart1();
+    void getCellIndexesPart2(int unique_count);
 
     // for debugging purposes 
     void copy_back();

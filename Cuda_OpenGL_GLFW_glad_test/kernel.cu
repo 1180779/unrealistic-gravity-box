@@ -54,6 +54,26 @@ __global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheig
     p.cell[i] = cell_x + cell_y * grid_width;
 }
 
+__global__ void lowerBoundKernel(int *keys, int *res, int cell_count, int *cell, int size)
+{
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i >= cell_count + CELL_BUFFER)
+        return;
+    int key = keys[i];
+    int low = 0;
+    int high = size;
+    while (low < high) {
+        int mid = low + (high - low) / 2;  // Avoid overflow
+        if (cell[mid] < key) {
+            low = mid + 1;
+        }
+        else {
+            high = mid;
+        }
+    }
+    res[i] = low;
+}
+
 __global__ void reorderParticleData(particles_gpu p, particles_temp_gpu p_temp) 
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
@@ -125,46 +145,53 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
     else
         end = p.size;
     
-    for (int j = i + 1; j < end; ++j)
-        particlesCollisionCheck(p, i, j);
+    if (!(end != 0 && p.cell[end] < cell)) {
+        for (int j = i + 1; j < end; ++j)
+            particlesCollisionCheck(p, i, j);
+    }
 
     // there is a row of cells above
-    //if (cell + grid_width < cell_count) {
-    //    // there is a column of cells on the left
-    //    if (cell % grid_width != 0) {
-    //        // cell above left 
-    //        start = p.cell_indexes[cell + grid_width - 1];
-    //        end = p.cell_indexes[cell + grid_width] - 1;
-    //        for (int j = start; j < end; ++j)
-    //            particlesCollisionCheck(p, i, j);
-    //    }
+    if (cell + grid_width < cell_count) {
+        // there is a column of cells on the left
+        if (cell % grid_width != 0) {
+            // cell above left 
+            start = p.cell_indexes[cell + grid_width - 1];
+            end = p.cell_indexes[cell + grid_width] - 1;
+            if (!(end != 0 && p.cell[end] < cell)) {
+                for (int j = start; j < end; ++j)
+                    particlesCollisionCheck(p, i, j);
+            }
+        }
 
     //    // cell above
-    //    start = p.cell_indexes[cell + grid_width];
-    //    end = p.cell_indexes[cell + grid_width + 1] - 1;
-    //    for (int j = start; j < end; ++j)
-    //        particlesCollisionCheck(p, i, j);
+        start = p.cell_indexes[cell + grid_width];
+        end = p.cell_indexes[cell + grid_width + 1] - 1;
+        if (!(end != 0 && p.cell[end] < cell)) {
+            for (int j = start; j < end; ++j)
+                particlesCollisionCheck(p, i, j);
+        }
 
     //    // check if column of cells on the right
-    //    if ((cell + 1) % grid_width != 0) {
-    //        // cell above right
-    //        start = p.cell_indexes[cell + grid_width + 1];
-    //        end = p.cell_indexes[cell + grid_width + 2] - 1;
-    //        for (int j = start; j < end; ++j)
-    //            particlesCollisionCheck(p, i, j);
-    //    }
-    //}
+        if ((cell + 1) % grid_width != 0) {
+            // cell above right
+            start = p.cell_indexes[cell + grid_width + 1];
+            end = p.cell_indexes[cell + grid_width + 2] - 1;
+            if (!(end != 0 && p.cell[end] < cell)) {
+                for (int j = start; j < end; ++j)
+                    particlesCollisionCheck(p, i, j);
+            }
+        }
+    }
 
     // check if column of cells on the right
     if ((cell + 1) % grid_width != 0) {
         // cell right
         start = p.cell_indexes[cell + 1];
-        if (cell + 2 < cell_count)
-            end = p.cell_indexes[cell + 2] - 1;
-        else
-            end = p.size;
-        for (int j = start; j < end; ++j)
-            particlesCollisionCheck(p, i, j);
+        end = p.cell_indexes[cell + 2] - 1;
+        if (!(end != 0 && p.cell[end] < cell)) {
+            for (int j = start; j < end; ++j)
+                particlesCollisionCheck(p, i, j);
+        }
     }
 }
 
@@ -430,8 +457,8 @@ int main(int, char**)
     GLint radiusxLocation = glGetUniformLocation(particleShaderProgram, "radius_y");
 
     p.cell_size = std::min(
-        static_cast<int>(config.radius * 16 + config.maxabs_starting_xvelocity * 4 + 
-            config.maxabs_starting_yvelocity * 4 + config.g * 4), 
+        static_cast<int>(config.radius * 2 + config.maxabs_starting_xvelocity * 2 + 
+            config.maxabs_starting_yvelocity * 2 + config.g * 4), 
         std::min(wwidth, wheigth) );
 
     std::cout << "Starting simulation..." << std::endl;
@@ -491,8 +518,19 @@ int main(int, char**)
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 
-        p.getCellIndexes();
-        //p.copy_back();
+        dim3 blocks_lb = dim3(p.cell_count / BLOCK_SIZE + 1);
+        dim3 threads_lb = dim3(BLOCK_SIZE);
+        int unique_count = p.getCellIndexesPart1();
+        lowerBoundKernel<<<blocks_lb, threads_lb>>>(
+            thrust::raw_pointer_cast(p.d_indices.data()),
+            thrust::raw_pointer_cast(p.d_cell_indexes_final.data()),
+            p.cell_count,
+            p.gpu.cell,
+            p.gpu.size);
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
+        p.getCellIndexesPart2(unique_count);
+        p.copy_back();
 
         // collisions
         particlesCollisionKernel<<<blocks, threads>>>(p.gpu, p.cell_size, grid_width, grid_heigth, p.cell_count);

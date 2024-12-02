@@ -17,6 +17,9 @@ configuration configuration::preset::standard()
     config.g = 0.4f;
     config.maxabs_starting_xvelocity = 2.0f;
     config.maxabs_starting_yvelocity = 2.0f;
+
+    config.wwidth = 1280;
+    config.wheigth = 720;
     return config;
 }
 
@@ -29,5 +32,8 @@ configuration configuration::preset::collisions()
     config.g = 0.4f;
     config.maxabs_starting_xvelocity = 5.0f;
     config.maxabs_starting_yvelocity = 2.0f;
+
+    config.wwidth = 1280;
+    config.wheigth = 720;
     return config;
 }

@@ -5,6 +5,7 @@
 #include <glad/glad.h>
 #include "cuda_gl_interop.h" // openGL interoperability
 #include "thrust/sequence.h"
+#include "thrust/binary_search.h"
 #include <glm/glm.hpp>
 
 void partciles_temp::initalize(int size) 
@@ -89,7 +90,8 @@ void particles::unmap(cudaGraphicsResource*& cudaResource)
     ERROR_CUDA(cudaGraphicsUnmapResources(1, &cudaResource, 0));
 }
 
-void particles::getCellIndexes() {
+int particles::getCellIndexesPart1() 
+{
     // reduce by key -> get the unique keys and their indexes 
     // from particle cell data
     auto end = thrust::reduce_by_key(
@@ -111,14 +113,19 @@ void particles::getCellIndexes() {
 
     if (h_cell_indexes_final.size() < cell_count)
         h_cell_indexes_final.resize(cell_count);
-    if (d_cell_indexes_final.size() < cell_count) {
-        d_cell_indexes_final.resize(cell_count);
+    if (d_cell_indexes_final.size() + CELL_BUFFER < cell_count) {
+        d_cell_indexes_final.resize(cell_count + CELL_BUFFER);
         gpu.cell_indexes = thrust::raw_pointer_cast(d_cell_indexes_final.data());
     }
-    
+
+    return unique_count;
+}
+
+void particles::getCellIndexesPart2(int unique_count) 
+{
     // copy the results to cpu
-    ERROR_CUDA(cudaMemcpy(thrust::raw_pointer_cast(h_cell_keys.data()), 
-        thrust::raw_pointer_cast(d_cell_keys.data()), 
+    ERROR_CUDA(cudaMemcpy(thrust::raw_pointer_cast(h_cell_keys.data()),
+        thrust::raw_pointer_cast(d_cell_keys.data()),
         sizeof(int) * unique_count, cudaMemcpyDeviceToHost));
     ERROR_CUDA(cudaGetLastError());
     ERROR_CUDA(cudaDeviceSynchronize());
@@ -129,35 +136,21 @@ void particles::getCellIndexes() {
     ERROR_CUDA(cudaGetLastError());
     ERROR_CUDA(cudaDeviceSynchronize());
 
-    // change partial data to indexes of all cells
-    //printf("\nunique_count = % 5d. \n%10s", unique_count, "Keys:");
-    //for (int i = 0; i < unique_count; ++i)
-    //    printf("%5d", h_cell_keys[i]);
-    //printf("\n%10s", "Indexes:");
-    //for (int i = 0; i < unique_count; ++i)
-    //    printf("%5d", h_cell_indexes[i]);
-    //printf("\n");
-
-    int j = unique_count - 1;
-    for (int i = cell_count - 1; i >= 0; --i) {
-        int temp = h_cell_keys[j];
-        if (h_cell_keys[j] != i) {
-            if (i + 1 < cell_count)
-                h_cell_indexes_final[i] = h_cell_indexes_final[i + 1];
-            else
-                h_cell_indexes_final[i] = gpu.size - 1;
-            continue;
-        }
-        h_cell_indexes_final[i] = h_cell_indexes[j];
-        --j;
-    }
-
-    // copy final cell indexes back to gpu
-    ERROR_CUDA(cudaMemcpy(thrust::raw_pointer_cast(d_cell_indexes_final.data()),
-        thrust::raw_pointer_cast(h_cell_indexes_final.data()),
-        sizeof(int) * cell_count, cudaMemcpyHostToDevice));
+    // copy results back to cpu
+    ERROR_CUDA(cudaMemcpy(thrust::raw_pointer_cast(h_cell_indexes_final.data()),
+        thrust::raw_pointer_cast(d_cell_indexes_final.data()),
+        sizeof(int) * cell_count, cudaMemcpyDeviceToHost));
     ERROR_CUDA(cudaGetLastError());
     ERROR_CUDA(cudaDeviceSynchronize());
+
+    // change partial data to indexes of all cells
+    printf("\nunique_count = % 5d. \n%10s", unique_count, "Keys:");
+    for (int i = 0; i < unique_count; ++i)
+        printf("%5d", h_cell_keys[i]);
+    printf("\n%10s", "Indexes:");
+    for (int i = 0; i < unique_count; ++i)
+        printf("%5d", h_cell_indexes[i]);
+    printf("\n");
 }
 
 // for debugging purposes 
