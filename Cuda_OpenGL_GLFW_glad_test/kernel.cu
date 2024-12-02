@@ -51,7 +51,7 @@ __global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheig
 
     int cell_x = p.x[i] / cell_size;
     int cell_y = p.y[i] / cell_size;
-    p.cell[i] = cell_x * grid_width + cell_y;
+    p.cell[i] = cell_x + cell_y * grid_width;
 }
 
 __global__ void reorderParticleData(particles_gpu p, particles_temp_gpu p_temp) 
@@ -118,9 +118,6 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
             p.vy[j] = vj_norm_new * sin(contact_angle) + vj_tang * cos(contact_angle);
         }
     }
-    int cell_x = p.x[i] / cell_size;
-    int cell_y = p.y[i] / cell_size;
-    p.cell[i] = cell_x + cell_y * grid_height;
 }
 
 #pragma endregion KERNELS
@@ -290,6 +287,25 @@ int main(int, char**)
             ImGui::End();
         }
 
+        {
+            ImGui::SetNextWindowSize(ImVec2(200, 100));
+            ImGui::Begin("Presets", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+
+
+            bool standartPreset = false;
+            standartPreset = ImGui::Button("Standard Preset");
+            if (standartPreset) {
+                config = configuration::preset::standard();
+            }
+
+            bool collisionsPreset = false;
+            collisionsPreset = ImGui::Button("Collisions Preset");
+            if (collisionsPreset) {
+                config = configuration::preset::collisions();
+            }
+            ImGui::End();
+        }
+
         // Rendering
         ImGui::Render();
         int display_w, display_h;
@@ -365,14 +381,10 @@ int main(int, char**)
     GLint radiusyLocation = glGetUniformLocation(particleShaderProgram, "radius_x");
     GLint radiusxLocation = glGetUniformLocation(particleShaderProgram, "radius_y");
 
-    int cell_size = std::min(
+    p.cell_size = std::min(
         static_cast<int>(config.radius * 16 + config.maxabs_starting_xvelocity * 4 + 
             config.maxabs_starting_yvelocity * 4 + config.g * 4), 
         std::min(wwidth, wheigth) );
-    int grid_width = static_cast<int>(
-        ceil(static_cast<double>(wwidth) / static_cast<double>(cell_size)) );
-    int grid_heigth = static_cast<int>(
-        ceil(static_cast<double>(wheigth) / static_cast<double>(cell_size)));
 
     std::cout << "Starting simulation..." << std::endl;
 
@@ -398,6 +410,12 @@ int main(int, char**)
 
         glfwGetWindowSize(window, &wwidth, &wheigth);
 
+        int grid_width = static_cast<int>(
+            ceil(static_cast<double>(wwidth) / static_cast<double>(p.cell_size)) );
+        int grid_heigth = static_cast<int>(
+            ceil(static_cast<double>(wheigth) / static_cast<double>(p.cell_size)));
+        p.cell_count = grid_width * grid_heigth;
+        
         // uniform data for shaders
         glUniform1f(screenWidthLoc, wwidth);
         glUniform1f(screenHeightLoc, wheigth);
@@ -408,7 +426,7 @@ int main(int, char**)
         dim3 threads = dim3(BLOCK_SIZE);
 
         // update particles positions
-        updateParticlesKernel<<<blocks, threads>>>(p.gpu, wwidth, wheigth, cell_size, grid_width);
+        updateParticlesKernel<<<blocks, threads>>>(p.gpu, wwidth, wheigth, p.cell_size, grid_width);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
         
@@ -425,32 +443,14 @@ int main(int, char**)
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 
-        // collisions in x axis
-        particlesCollisionKernel<<<blocks, threads>>>(p.gpu, cell_size, grid_heigth);
+        p.getCellIndexes();
+
+        // collisions
+        particlesCollisionKernel<<<blocks, threads>>>(p.gpu, p.cell_size, grid_heigth);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 
-        // sort indexes and copy the data back and forth
-        thrust::sort_by_key(p.d_cell.begin(), p.d_cell.end(), p.d_index.begin());
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
-
-        reorderParticleData<<<blocks, threads>>>(p.gpu, p_temp.gpu);
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
-
-        copyParticleDataBack<<<blocks, threads>>>(p.gpu, p_temp.gpu);
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
-
-        // collisions in y axis
-        particlesCollisionKernel<<<blocks, threads>>>(p.gpu, cell_size, grid_heigth);
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
-
-#ifdef DEBUG
-        //p.copy_back();
-#endif
+        p.copy_back();
 
         {
             ImGui::SetNextWindowSize(ImVec2(300, 80));

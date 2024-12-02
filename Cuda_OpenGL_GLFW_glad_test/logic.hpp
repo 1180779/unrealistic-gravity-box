@@ -43,10 +43,14 @@ struct particles_gpu {
     float* vy;
     float* m;
     int* cell;
+
+    int* cell_indexes;
     glm::vec4* color;
 };
 
 struct particles {
+    int cell_count;
+    int cell_size;
     particles_gpu gpu;
 
     thrust::host_vector<int> h_index;
@@ -62,6 +66,19 @@ struct particles {
     thrust::device_vector<float> d_vy;
     thrust::device_vector<float> d_m;
     thrust::device_vector<int> d_cell;
+
+
+
+    // get cells first occurances
+    thrust::device_vector<int> d_cell_keys; // keys (size of particle count)
+    thrust::device_vector<int> d_cell_indexes; // indexes (size of particle count)
+    thrust::device_vector<int> d_indices; // [0, 1, ..., particle count - 1]
+
+    thrust::host_vector<int> h_cell_keys;
+    thrust::host_vector<int> h_cell_indexes;
+    thrust::host_vector<int> h_cell_indexes_final;
+
+    thrust::device_vector<int> d_cell_indexes_final; // final indexes (size of number of cells)
 
     void initialize(const configuration& config);
 
@@ -79,6 +96,8 @@ struct particles {
     }
 
     void unmap(cudaGraphicsResource*& cudaResource);
+
+    void getCellIndexes();
 
     // for debugging purposes 
     void copy_back();

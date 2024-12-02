@@ -2,11 +2,15 @@
 #ifndef _CONFIGURATION_1180779_
 #define _CONFIGURATION_1180779_
 
-#define DEBUG
-
 class configuration
 {
 public:
+    class preset {
+    public:
+        static configuration standard();
+        static configuration collisions();
+    };
+
     int wwidth;
     int wheigth;
 
