@@ -130,13 +130,13 @@ void particles::getCellIndexes() {
     ERROR_CUDA(cudaDeviceSynchronize());
 
     // change partial data to indexes of all cells
-    printf("\nunique_count = % 5d. \n%10s", unique_count, "Keys:");
-    for (int i = 0; i < unique_count; ++i)
-        printf("%5d", h_cell_keys[i]);
-    printf("\n%10s", "Indexes:");
-    for (int i = 0; i < unique_count; ++i)
-        printf("%5d", h_cell_indexes[i]);
-    printf("\n");
+    //printf("\nunique_count = % 5d. \n%10s", unique_count, "Keys:");
+    //for (int i = 0; i < unique_count; ++i)
+    //    printf("%5d", h_cell_keys[i]);
+    //printf("\n%10s", "Indexes:");
+    //for (int i = 0; i < unique_count; ++i)
+    //    printf("%5d", h_cell_indexes[i]);
+    //printf("\n");
 
     int j = unique_count - 1;
     for (int i = cell_count - 1; i >= 0; --i) {

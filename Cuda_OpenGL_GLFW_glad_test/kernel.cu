@@ -155,14 +155,17 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
     //    }
     //}
 
-    //// check if column of cells on the right
-    //if ((cell + 1) % grid_width != 0) {
-    //    // cell right
-    //    start = p.cell_indexes[cell + 1];
-    //    end = p.cell_indexes[cell + 2] - 1;
-    //    for (int j = start; j < end; ++j)
-    //        particlesCollisionCheck(p, i, j);
-    //}
+    // check if column of cells on the right
+    if ((cell + 1) % grid_width != 0) {
+        // cell right
+        start = p.cell_indexes[cell + 1];
+        if (cell + 2 < cell_count)
+            end = p.cell_indexes[cell + 2] - 1;
+        else
+            end = p.size;
+        for (int j = start; j < end; ++j)
+            particlesCollisionCheck(p, i, j);
+    }
 }
 
 #pragma endregion KERNELS
@@ -489,7 +492,7 @@ int main(int, char**)
         ERROR_CUDA(cudaDeviceSynchronize());
 
         p.getCellIndexes();
-        p.copy_back();
+        //p.copy_back();
 
         // collisions
         particlesCollisionKernel<<<blocks, threads>>>(p.gpu, p.cell_size, grid_width, grid_heigth, p.cell_count);
