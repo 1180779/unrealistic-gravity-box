@@ -111,8 +111,10 @@ void particles::getCellIndexes() {
 
     if (h_cell_indexes_final.size() < cell_count)
         h_cell_indexes_final.resize(cell_count);
-    if (d_cell_indexes_final.size() < cell_count)
+    if (d_cell_indexes_final.size() < cell_count) {
         d_cell_indexes_final.resize(cell_count);
+        gpu.cell_indexes = thrust::raw_pointer_cast(d_cell_indexes_final.data());
+    }
     
     // copy the results to cpu
     ERROR_CUDA(cudaMemcpy(thrust::raw_pointer_cast(h_cell_keys.data()), 
@@ -136,15 +138,18 @@ void particles::getCellIndexes() {
         printf("%5d", h_cell_indexes[i]);
     printf("\n");
 
-    int j = 0;
-    for (int i = 0; i < cell_count; ++i) {
+    int j = unique_count - 1;
+    for (int i = cell_count - 1; i >= 0; --i) {
         int temp = h_cell_keys[j];
         if (h_cell_keys[j] != i) {
-            h_cell_indexes_final[i] = h_cell_indexes[j - 1];
+            if (i + 1 < cell_count)
+                h_cell_indexes_final[i] = h_cell_indexes_final[i + 1];
+            else
+                h_cell_indexes_final[i] = gpu.size - 1;
             continue;
         }
         h_cell_indexes_final[i] = h_cell_indexes[j];
-        ++j;
+        --j;
     }
 
     // copy final cell indexes back to gpu
@@ -182,7 +187,7 @@ void particles::copy_back() {
     ERROR_CUDA(cudaGetLastError());
     ERROR_CUDA(cudaDeviceSynchronize());
 
-    printf("\n\nCELL DATA(cell_size = %d)\n%10s", cell_size, "keys:");
+    printf("\n\nCELL DATA(cell_size = %d), (d_indexes size = %d)\n%10s", cell_size, d_cell_indexes_final.size(), "keys:");
     for (int i = 0; i < cell_count; ++i) {
         printf("%5d ", i);
     }

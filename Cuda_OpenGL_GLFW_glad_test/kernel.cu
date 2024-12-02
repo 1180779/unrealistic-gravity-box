@@ -82,42 +82,87 @@ __global__ void copyParticleDataBack(particles_gpu p, particles_temp_gpu p_temp)
     p.color[i] = p_temp.temp_color[i];
 }
 
-__global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int grid_height)
+__device__ void particlesCollisionCheck(particles_gpu p, int i, int j) 
+{
+    float dist_x = p.x[i] - p.x[j];
+    float dist_y = p.y[i] - p.y[j];
+    float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
+    if (dist <= p.radius) {
+        float contact_angle = atan2(dist_y, dist_x);
+
+        float vi_norm = p.vx[i] * cos(contact_angle) + p.vy[i] * sin(contact_angle);
+        float vi_tang = -p.vx[i] * sin(contact_angle) + p.vy[i] * cos(contact_angle);
+
+        float vj_norm = p.vx[j] * cos(contact_angle) + p.vy[j] * sin(contact_angle);
+        float vj_tang = -p.vx[j] * sin(contact_angle) + p.vy[j] * cos(contact_angle);
+
+        float vi_norm_new = vi_norm * (p.m[i] - p.m[j]) + 2 * p.m[j] * vj_norm / (p.m[i] + p.m[j]);
+        float vj_norm_new = vj_norm * (p.m[j] - p.m[i]) + 2 * p.m[i] * vi_norm / (p.m[i] + p.m[j]);
+
+        p.vx[i] = vi_norm_new * cos(contact_angle) - vi_tang * sin(contact_angle);
+        p.vy[i] = vi_norm_new * sin(contact_angle) + vi_tang * cos(contact_angle);
+
+        p.vx[j] = vj_norm_new * cos(contact_angle) - vj_tang * sin(contact_angle);
+        p.vy[j] = vj_norm_new * sin(contact_angle) + vj_tang * cos(contact_angle);
+    }
+}
+
+__global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int grid_width, int grid_height, int cell_count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
     if (i >= p.size)
         return;
 
     int cell = p.cell[i];
-    int j = i + 1;
-    int k = i + 1;
-    while (k < p.size && p.cell[k] <= cell + 1)
-        ++k;
+    if (cell >= cell_count)
+        return;
 
-    for (; j < k; ++j) {
-        //__syncthreads();
-        float dist_x = p.x[i] - p.x[j];
-        float dist_y = p.y[i] - p.y[j];
-        float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
-        if (dist <= p.radius) {
-            float contact_angle = atan2(dist_y, dist_x);
+    // the same cell
+    int start;
+    int end; 
+    if (cell + 1 < cell_count)
+        end = p.cell_indexes[cell + 1] - 1;
+    else
+        end = p.size;
+    
+    for (int j = i + 1; j < end; ++j)
+        particlesCollisionCheck(p, i, j);
 
-            float vi_norm = p.vx[i] * cos(contact_angle) + p.vy[i] * sin(contact_angle);
-            float vi_tang = -p.vx[i] * sin(contact_angle) + p.vy[i] * cos(contact_angle);
+    // there is a row of cells above
+    //if (cell + grid_width < cell_count) {
+    //    // there is a column of cells on the left
+    //    if (cell % grid_width != 0) {
+    //        // cell above left 
+    //        start = p.cell_indexes[cell + grid_width - 1];
+    //        end = p.cell_indexes[cell + grid_width] - 1;
+    //        for (int j = start; j < end; ++j)
+    //            particlesCollisionCheck(p, i, j);
+    //    }
 
-            float vj_norm = p.vx[j] * cos(contact_angle) + p.vy[j] * sin(contact_angle);
-            float vj_tang = -p.vx[j] * sin(contact_angle) + p.vy[j] * cos(contact_angle);
+    //    // cell above
+    //    start = p.cell_indexes[cell + grid_width];
+    //    end = p.cell_indexes[cell + grid_width + 1] - 1;
+    //    for (int j = start; j < end; ++j)
+    //        particlesCollisionCheck(p, i, j);
 
-            float vi_norm_new = vi_norm * (p.m[i] - p.m[j]) + 2 * p.m[j] * vj_norm / (p.m[i] + p.m[j]);
-            float vj_norm_new = vj_norm * (p.m[j] - p.m[i]) + 2 * p.m[i] * vi_norm / (p.m[i] + p.m[j]);
+    //    // check if column of cells on the right
+    //    if ((cell + 1) % grid_width != 0) {
+    //        // cell above right
+    //        start = p.cell_indexes[cell + grid_width + 1];
+    //        end = p.cell_indexes[cell + grid_width + 2] - 1;
+    //        for (int j = start; j < end; ++j)
+    //            particlesCollisionCheck(p, i, j);
+    //    }
+    //}
 
-            p.vx[i] = vi_norm_new * cos(contact_angle) - vi_tang * sin(contact_angle);
-            p.vy[i] = vi_norm_new * sin(contact_angle) + vi_tang * cos(contact_angle);
-
-            p.vx[j] = vj_norm_new * cos(contact_angle) - vj_tang * sin(contact_angle);
-            p.vy[j] = vj_norm_new * sin(contact_angle) + vj_tang * cos(contact_angle);
-        }
-    }
+    //// check if column of cells on the right
+    //if ((cell + 1) % grid_width != 0) {
+    //    // cell right
+    //    start = p.cell_indexes[cell + 1];
+    //    end = p.cell_indexes[cell + 2] - 1;
+    //    for (int j = start; j < end; ++j)
+    //        particlesCollisionCheck(p, i, j);
+    //}
 }
 
 #pragma endregion KERNELS
@@ -444,13 +489,13 @@ int main(int, char**)
         ERROR_CUDA(cudaDeviceSynchronize());
 
         p.getCellIndexes();
+        p.copy_back();
 
         // collisions
-        particlesCollisionKernel<<<blocks, threads>>>(p.gpu, p.cell_size, grid_heigth);
+        particlesCollisionKernel<<<blocks, threads>>>(p.gpu, p.cell_size, grid_width, grid_heigth, p.cell_count);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
 
-        p.copy_back();
 
         {
             ImGui::SetNextWindowSize(ImVec2(300, 80));
