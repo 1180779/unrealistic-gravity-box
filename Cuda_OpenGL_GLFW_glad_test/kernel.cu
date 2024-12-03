@@ -28,7 +28,7 @@
 
 #pragma region KERNELS
 
-__global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheight, float cell_size, float grid_width)
+__global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheight, float cell_size, int grid_width)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
     if (i >= p.size)
@@ -52,6 +52,7 @@ __global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheig
     int cell_x = p.x[i] / cell_size;
     int cell_y = p.y[i] / cell_size;
     p.cell[i] = cell_x + cell_y * grid_width;
+    p.index[i] = i;
 }
 
 __global__ void lowerBoundKernel(int *keys, int *res, int cell_count, int *cell, int size)
@@ -59,7 +60,8 @@ __global__ void lowerBoundKernel(int *keys, int *res, int cell_count, int *cell,
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     if (i >= cell_count + CELL_BUFFER)
         return;
-    int key = keys[i];
+    int key = i; // keys[i];
+
     int low = 0;
     int high = size;
     while (low < high) {
@@ -93,7 +95,6 @@ __global__ void copyParticleDataBack(particles_gpu p, particles_temp_gpu p_temp)
     int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
     if (i >= p.size)
         return;
-
     p.x[i] = p_temp.temp_x[i];
     p.y[i] = p_temp.temp_y[i];
     p.vx[i] = p_temp.temp_vx[i];
@@ -107,7 +108,7 @@ __device__ void particlesCollisionCheck(particles_gpu p, int i, int j)
     float dist_x = p.x[i] - p.x[j];
     float dist_y = p.y[i] - p.y[j];
     float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
-    if (dist <= p.radius) {
+    if (dist <= 2 * p.radius) {
         float contact_angle = atan2(dist_y, dist_x);
 
         float vi_norm = p.vx[i] * cos(contact_angle) + p.vy[i] * sin(contact_angle);
@@ -130,8 +131,15 @@ __device__ void particlesCollisionCheck(particles_gpu p, int i, int j)
 __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int grid_width, int grid_height, int cell_count)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x; // particle index
+
     if (i >= p.size)
         return;
+
+    // check if collision even works
+    //for (int j = i + 1; j < p.size; ++j)
+    //    particlesCollisionCheck(p, i, j);
+    //return;
+
 
     int cell = p.cell[i];
     if (cell >= cell_count)
@@ -140,15 +148,10 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
     // the same cell
     int start;
     int end; 
-    if (cell + 1 < cell_count)
-        end = p.cell_indexes[cell + 1] - 1;
-    else
-        end = p.size;
+    end = p.cell_indexes[cell + 1];
     
-    if (!(end != 0 && p.cell[end] < cell)) {
         for (int j = i + 1; j < end; ++j)
             particlesCollisionCheck(p, i, j);
-    }
 
     // there is a row of cells above
     if (cell + grid_width < cell_count) {
@@ -156,30 +159,24 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
         if (cell % grid_width != 0) {
             // cell above left 
             start = p.cell_indexes[cell + grid_width - 1];
-            end = p.cell_indexes[cell + grid_width] - 1;
-            if (!(end != 0 && p.cell[end] < cell)) {
+            end = p.cell_indexes[cell + grid_width];
                 for (int j = start; j < end; ++j)
                     particlesCollisionCheck(p, i, j);
-            }
         }
 
     //    // cell above
         start = p.cell_indexes[cell + grid_width];
-        end = p.cell_indexes[cell + grid_width + 1] - 1;
-        if (!(end != 0 && p.cell[end] < cell)) {
+        end = p.cell_indexes[cell + grid_width + 1];
             for (int j = start; j < end; ++j)
                 particlesCollisionCheck(p, i, j);
-        }
 
     //    // check if column of cells on the right
         if ((cell + 1) % grid_width != 0) {
             // cell above right
             start = p.cell_indexes[cell + grid_width + 1];
-            end = p.cell_indexes[cell + grid_width + 2] - 1;
-            if (!(end != 0 && p.cell[end] < cell)) {
+            end = p.cell_indexes[cell + grid_width + 2];
                 for (int j = start; j < end; ++j)
                     particlesCollisionCheck(p, i, j);
-            }
         }
     }
 
@@ -187,11 +184,9 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
     if ((cell + 1) % grid_width != 0) {
         // cell right
         start = p.cell_indexes[cell + 1];
-        end = p.cell_indexes[cell + 2] - 1;
-        if (!(end != 0 && p.cell[end] < cell)) {
+        end = p.cell_indexes[cell + 2];
             for (int j = start; j < end; ++j)
                 particlesCollisionCheck(p, i, j);
-        }
     }
 }
 
@@ -505,6 +500,8 @@ int main(int, char**)
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
         
+        p.copy_back(grid_width, grid_heigth);
+
         // sort indexes and copy the data back and forth
         thrust::sort_by_key(p.d_cell.begin(), p.d_cell.end(), p.d_index.begin());
         ERROR_CUDA(cudaGetLastError());
@@ -530,7 +527,7 @@ int main(int, char**)
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
         p.getCellIndexesPart2(unique_count);
-        p.copy_back();
+        p.copy_back(grid_width, grid_heigth);
 
         // collisions
         particlesCollisionKernel<<<blocks, threads>>>(p.gpu, p.cell_size, grid_width, grid_heigth, p.cell_count);

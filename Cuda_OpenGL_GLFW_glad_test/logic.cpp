@@ -15,6 +15,7 @@ void partciles_temp::initalize(int size)
     temp_vx = thrust::device_vector<float>(size);
     temp_vy = thrust::device_vector<float>(size);
     temp_m = thrust::device_vector<float>(size);
+    temp_cell = thrust::device_vector<int>(size + 2);
     temp_color = thrust::device_vector<glm::vec4>(size);
 
     gpu.temp_x = thrust::raw_pointer_cast(temp_x.data());
@@ -22,6 +23,7 @@ void partciles_temp::initalize(int size)
     gpu.temp_vx = thrust::raw_pointer_cast(temp_vx.data());
     gpu.temp_vy = thrust::raw_pointer_cast(temp_vy.data());
     gpu.temp_m = thrust::raw_pointer_cast(temp_m.data());
+    gpu.temp_cell = thrust::raw_pointer_cast(temp_cell.data());
     gpu.temp_color = thrust::raw_pointer_cast(temp_color.data());
 }
 
@@ -154,7 +156,7 @@ void particles::getCellIndexesPart2(int unique_count)
 }
 
 // for debugging purposes 
-void particles::copy_back() {
+void particles::copy_back(int grid_width, int grid_heigth) {
     float* raw_x = h_x.data();
     ERROR_CUDA(cudaMemcpy(raw_x, gpu.x, sizeof(float) * gpu.size, cudaMemcpyDeviceToHost));
     ERROR_CUDA(cudaGetLastError());
@@ -180,16 +182,16 @@ void particles::copy_back() {
     ERROR_CUDA(cudaGetLastError());
     ERROR_CUDA(cudaDeviceSynchronize());
 
-    printf("\n\nCELL DATA(cell_size = %d), (d_indexes size = %d)\n%10s", cell_size, d_cell_indexes_final.size(), "keys:");
-    for (int i = 0; i < cell_count; ++i) {
-        printf("%5d ", i);
-    }
-    printf("\n%10s", "indexes:");
-    for (int i = 0; i < cell_count; ++i) {
-        printf("%5d ", h_cell_indexes_final[i]);
-    }
+    //printf("\n\nCELL DATA(cell_size = %d), (d_indexes size = %d)\n%10s", cell_size, d_cell_indexes_final.size(), "keys:");
+    //for (int i = 0; i < cell_count; ++i) {
+    //    printf("%5d ", i);
+    //}
+    //printf("\n%10s", "indexes:");
+    //for (int i = 0; i < cell_count; ++i) {
+    //    printf("%5d ", h_cell_indexes_final[i]);
+    //}
 
-    printf("\nPARTICLE DATA: \n");
+    printf("\nPARTICLE DATA (cell_size = %d) (grid_width = %d) (grid_heigth = %d): \n", cell_size, grid_width, grid_heigth);
     for (int i = 0; i < gpu.size; ++i) {
         printf("i = %5d | cell = %5d | x = %5.3f | y = %5.3f | vx = %5.3f | vy = %5.3f\n", i, raw_cell[i], h_x[i], h_y[i], h_vx[i], h_vy[i]);
     }

@@ -18,6 +18,7 @@ struct particles_temp_gpu
     float* temp_vx;
     float* temp_vy;
     float* temp_m;
+    int* temp_cell;
     glm::vec4* temp_color;
 };
 
@@ -30,6 +31,7 @@ struct partciles_temp
     thrust::device_vector<float> temp_vx;
     thrust::device_vector<float> temp_vy;
     thrust::device_vector<float> temp_m;
+    thrust::device_vector<int> temp_cell;
     thrust::device_vector<glm::vec4> temp_color;
 
     void initalize(int size);
@@ -107,7 +109,7 @@ struct particles
     void getCellIndexesPart2(int unique_count);
 
     // for debugging purposes 
-    void copy_back();
+    void copy_back(int grid_width, int grid_heigth);
 };
 
 #endif
