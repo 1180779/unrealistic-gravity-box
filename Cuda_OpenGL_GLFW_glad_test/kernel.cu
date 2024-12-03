@@ -109,6 +109,12 @@ __device__ void particlesCollisionCheck(particles_gpu p, int i, int j)
     float dist_y = p.y[i] - p.y[j];
     float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
     if (dist <= 2 * p.radius) {
+        float dvx = p.vx[i] - p.vx[j];
+        float dvy = p.vy[i] - p.vy[j];
+        float v = dvx * dist_x + dvy * dist_y;
+        if (v > 0) // moving in opposite direction
+            return;
+
         float contact_angle = atan2(dist_y, dist_x);
 
         float vi_norm = p.vx[i] * cos(contact_angle) + p.vy[i] * sin(contact_angle);
