@@ -452,7 +452,7 @@ int main(int, char**)
     GLint radiusxLocation = glGetUniformLocation(particleShaderProgram, "radius_y");
 
     p.cell_size = std::min(
-        static_cast<int>(config.radius * 4), 
+        static_cast<int>(config.radius * 2), 
         std::min(wwidth, wheigth) );
 
     std::cout << "Cell size = " << p.cell_size << std::endl;
