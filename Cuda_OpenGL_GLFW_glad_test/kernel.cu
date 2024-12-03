@@ -142,7 +142,7 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
 
 
     int cell = p.cell[i];
-    if (cell >= cell_count)
+    if (cell < 0 || cell >= cell_count)
         return;
 
     // the same cell
@@ -452,9 +452,10 @@ int main(int, char**)
     GLint radiusxLocation = glGetUniformLocation(particleShaderProgram, "radius_y");
 
     p.cell_size = std::min(
-        static_cast<int>(config.radius * 2 + config.maxabs_starting_xvelocity * 2 + 
-            config.maxabs_starting_yvelocity * 2 + config.g * 4), 
+        static_cast<int>(config.radius * 4), 
         std::min(wwidth, wheigth) );
+
+    std::cout << "Cell size = " << p.cell_size << std::endl;
 
     std::cout << "Starting simulation..." << std::endl;
 
@@ -500,7 +501,7 @@ int main(int, char**)
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
         
-        p.copy_back(grid_width, grid_heigth);
+        //p.copy_back(grid_width, grid_heigth);
 
         // sort indexes and copy the data back and forth
         thrust::sort_by_key(p.d_cell.begin(), p.d_cell.end(), p.d_index.begin());
@@ -526,8 +527,8 @@ int main(int, char**)
             p.gpu.size);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
-        p.getCellIndexesPart2(unique_count);
-        p.copy_back(grid_width, grid_heigth);
+        //p.getCellIndexesPart2(unique_count);
+        //p.copy_back(grid_width, grid_heigth);
 
         // collisions
         particlesCollisionKernel<<<blocks, threads>>>(p.gpu, p.cell_size, grid_width, grid_heigth, p.cell_count);
