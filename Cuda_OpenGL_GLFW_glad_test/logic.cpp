@@ -108,6 +108,7 @@ int particles::getCellIndexesPart1()
 
     // resize vectors if necessary
     int unique_count = end.first - d_cell_keys.begin();
+#ifdef DEBUG
     if (h_cell_keys.size() < unique_count)
         h_cell_keys.resize(unique_count);
     if (h_cell_indexes.size() < unique_count)
@@ -115,7 +116,8 @@ int particles::getCellIndexesPart1()
 
     if (h_cell_indexes_final.size() < cell_count)
         h_cell_indexes_final.resize(cell_count);
-    if (d_cell_indexes_final.size() + CELL_BUFFER < cell_count) {
+#endif
+    if (d_cell_indexes_final.size() < cell_count + CELL_BUFFER) {
         d_cell_indexes_final.resize(cell_count + CELL_BUFFER);
         gpu.cell_indexes = thrust::raw_pointer_cast(d_cell_indexes_final.data());
     }
@@ -123,6 +125,7 @@ int particles::getCellIndexesPart1()
     return unique_count;
 }
 
+#ifdef DEBUG
 void particles::getCellIndexesPart2(int unique_count) 
 {
     // copy the results to cpu
@@ -148,11 +151,20 @@ void particles::getCellIndexesPart2(int unique_count)
     // change partial data to indexes of all cells
     printf("\nunique_count = % 5d. \n%10s", unique_count, "Keys:");
     for (int i = 0; i < unique_count; ++i)
-        printf("%5d", h_cell_keys[i]);
+        printf("%10d", h_cell_keys[i]);
     printf("\n%10s", "Indexes:");
     for (int i = 0; i < unique_count; ++i)
-        printf("%5d", h_cell_indexes[i]);
+        printf("%10d", h_cell_indexes[i]);
     printf("\n");
+
+    printf("\n\nCELL DATA(cell_size = %5d), (d_indexes size = %5d)\n%10s", cell_size, d_cell_indexes_final.size(), "keys:");
+    for (int i = 0; i < cell_count; ++i) {
+        printf("%10d ", i);
+    }
+    printf("\n%10s", "indexes:");
+    for (int i = 0; i < cell_count; ++i) {
+        printf("%10d ", h_cell_indexes_final[i]);
+    }
 }
 
 // for debugging purposes 
@@ -182,18 +194,10 @@ void particles::copy_back(int grid_width, int grid_heigth) {
     ERROR_CUDA(cudaGetLastError());
     ERROR_CUDA(cudaDeviceSynchronize());
 
-    //printf("\n\nCELL DATA(cell_size = %d), (d_indexes size = %d)\n%10s", cell_size, d_cell_indexes_final.size(), "keys:");
-    //for (int i = 0; i < cell_count; ++i) {
-    //    printf("%5d ", i);
-    //}
-    //printf("\n%10s", "indexes:");
-    //for (int i = 0; i < cell_count; ++i) {
-    //    printf("%5d ", h_cell_indexes_final[i]);
-    //}
-
-    printf("\nPARTICLE DATA (cell_size = %d) (grid_width = %d) (grid_heigth = %d): \n", cell_size, grid_width, grid_heigth);
+    printf("\nPARTICLE DATA (cell_size = %5d) (grid_width = %5d) (grid_heigth = %5d): \n", cell_size, grid_width, grid_heigth);
     for (int i = 0; i < gpu.size; ++i) {
-        printf("i = %5d | cell = %5d | x = %5.3f | y = %5.3f | vx = %5.3f | vy = %5.3f\n", i, raw_cell[i], h_x[i], h_y[i], h_vx[i], h_vy[i]);
+        printf("i = %10d | cell = %10d | x = %10.3f | y = %10.3f | vx = %10.3f | vy = %10.3f\n", i, raw_cell[i], h_x[i], h_y[i], h_vx[i], h_vy[i]);
     }
     delete[] raw_cell;
 }
+#endif

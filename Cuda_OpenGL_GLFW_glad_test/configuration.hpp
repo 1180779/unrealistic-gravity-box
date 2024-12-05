@@ -2,6 +2,8 @@
 #ifndef _CONFIGURATION_1180779_
 #define _CONFIGURATION_1180779_
 
+#include <string>
+
 class configuration
 {
 public:
@@ -10,6 +12,8 @@ public:
         static configuration standard();
         static configuration collisions();
     };
+
+    void load_from_file(std::string filename);
 
     int wwidth;
     int wheigth;

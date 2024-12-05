@@ -95,6 +95,9 @@
     <ClInclude Include="error_macros.hpp">
       <Filter>headers</Filter>
     </ClInclude>
+    <ClInclude Include="shaders_source.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\simple.vert">
@@ -115,5 +118,8 @@
     <None Include="shaders\cuda_circle.geom">
       <Filter>shaders</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\x64\Debug\config.txt" />
   </ItemGroup>
 </Project>

@@ -2,6 +2,8 @@
 #ifndef _LOGIC_1180779_
 #define _LOGIC_1180779_
 
+//#define DEBUG
+
 #include "configuration.hpp"
 
 #include <thrust/device_vector.h>
@@ -78,9 +80,9 @@ struct particles
 
 
     // get cells first occurances
-    thrust::device_vector<int> d_cell_keys; // keys (size of particle count)
-    thrust::device_vector<int> d_cell_indexes; // indexes (size of particle count)
-    thrust::device_vector<int> d_indices; // [0, 1, ..., particle count - 1]
+    thrust::device_vector<int> d_cell_keys;     // keys (size of particle count)
+    thrust::device_vector<int> d_cell_indexes;  // indexes (size of particle count)
+    thrust::device_vector<int> d_indices;       // [0, 1, ..., particle count - 1]
 
     thrust::host_vector<int> h_cell_keys;
     thrust::host_vector<int> h_cell_indexes;
@@ -99,17 +101,19 @@ struct particles
         ERROR_CUDA(cudaGraphicsResourceGetMappedPointer(&devPtr, &size, cudaResource));
 
         if (size < gpu.size * sizeof(T))
-            ERROR("cudaGraphicsResourceGetMappedPointer: returned size is too small");
+            ERROR_("cudaGraphicsResourceGetMappedPointer: returned size is too small");
         dest = static_cast<T*>(devPtr);
     }
 
     void unmap(cudaGraphicsResource*& cudaResource);
 
     int getCellIndexesPart1();
+#ifdef DEBUG
     void getCellIndexesPart2(int unique_count);
 
     // for debugging purposes 
     void copy_back(int grid_width, int grid_heigth);
+#endif
 };
 
 #endif

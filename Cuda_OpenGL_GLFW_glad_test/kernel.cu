@@ -44,8 +44,8 @@ __global__ void updateParticlesKernel(particles_gpu p, float wwidth, float wheig
     if (p.x[i] <= 0.f + p.radius)
         p.vx[i] = abs(p.vx[i]);
 
-    //if (p.y[i] >= wheight)
-    //    p.vy[i] = -abs(p.vy[i]);
+    if (p.y[i] >= wheight - p.radius)
+        p.vy[i] = -abs(p.vy[i]);
     if (p.y[i] <= 0.f + p.radius)
         p.vy[i] = abs(p.vy[i]);
 
@@ -60,12 +60,12 @@ __global__ void lowerBoundKernel(int *keys, int *res, int cell_count, int *cell,
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     if (i >= cell_count + CELL_BUFFER)
         return;
-    int key = i; // keys[i];
+    int key = i;
 
     int low = 0;
     int high = size;
     while (low < high) {
-        int mid = low + (high - low) / 2;  // Avoid overflow
+        int mid = (low + high) / 2;
         if (cell[mid] < key) {
             low = mid + 1;
         }
@@ -141,11 +141,6 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
     if (i >= p.size)
         return;
 
-    // check if collision even works
-    //for (int j = i + 1; j < p.size; ++j)
-    //    particlesCollisionCheck(p, i, j);
-    //return;
-
 
     int cell = p.cell[i];
     if (cell < 0 || cell >= cell_count)
@@ -155,9 +150,8 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
     int start;
     int end; 
     end = p.cell_indexes[cell + 1];
-    
-        for (int j = i + 1; j < end; ++j)
-            particlesCollisionCheck(p, i, j);
+    for (int j = i + 1; j < end; ++j)
+        particlesCollisionCheck(p, i, j);
 
     // there is a row of cells above
     if (cell + grid_width < cell_count) {
@@ -166,23 +160,23 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
             // cell above left 
             start = p.cell_indexes[cell + grid_width - 1];
             end = p.cell_indexes[cell + grid_width];
-                for (int j = start; j < end; ++j)
-                    particlesCollisionCheck(p, i, j);
-        }
-
-    //    // cell above
-        start = p.cell_indexes[cell + grid_width];
-        end = p.cell_indexes[cell + grid_width + 1];
             for (int j = start; j < end; ++j)
                 particlesCollisionCheck(p, i, j);
+        }
 
-    //    // check if column of cells on the right
+        // cell above
+        start = p.cell_indexes[cell + grid_width];
+        end = p.cell_indexes[cell + grid_width + 1];
+        for (int j = start; j < end; ++j)
+            particlesCollisionCheck(p, i, j);
+
+        // check if column of cells on the right
         if ((cell + 1) % grid_width != 0) {
             // cell above right
             start = p.cell_indexes[cell + grid_width + 1];
             end = p.cell_indexes[cell + grid_width + 2];
-                for (int j = start; j < end; ++j)
-                    particlesCollisionCheck(p, i, j);
+            for (int j = start; j < end; ++j)
+                particlesCollisionCheck(p, i, j);
         }
     }
 
@@ -191,8 +185,8 @@ __global__ void particlesCollisionKernel(particles_gpu p, int cell_size, int gri
         // cell right
         start = p.cell_indexes[cell + 1];
         end = p.cell_indexes[cell + 2];
-            for (int j = start; j < end; ++j)
-                particlesCollisionCheck(p, i, j);
+        for (int j = start; j < end; ++j)
+            particlesCollisionCheck(p, i, j);
     }
 }
 
@@ -256,7 +250,7 @@ int main(int, char**)
 
     // Create window with graphics context
     GLFWwindow* window = glfwCreateWindow(wwidth, wheigth,
-        "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr);
+        "Gravity Box", nullptr, nullptr);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -293,7 +287,6 @@ int main(int, char**)
 
     std::cout << "Loading shader files..." << std::endl;
     shader_files shader_files(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE, GEOMETRY_SHADER_SOURCE);
-    shader_files.print();
 
     std::cout << "Compiling vertex shader..." << std::endl;
     GLuint vertexShader = compileShader(shader_files.vertexShaderSourceC, GL_VERTEX_SHADER);
@@ -379,6 +372,12 @@ int main(int, char**)
             if (collisionsPreset) {
                 config = configuration::preset::collisions();
             }
+
+            bool loadFromFile = ImGui::Button("Load from file");
+            if (loadFromFile) {
+                config.load_from_file("./config.txt");
+            }
+
             ImGui::End();
         }
 
@@ -507,7 +506,10 @@ int main(int, char**)
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
         
-        //p.copy_back(grid_width, grid_heigth);
+        // debugging purposes
+#ifdef DEBUG
+        p.copy_back(grid_width, grid_heigth);
+#endif
 
         // sort indexes and copy the data back and forth
         thrust::sort_by_key(p.d_cell.begin(), p.d_cell.end(), p.d_index.begin());
@@ -533,14 +535,17 @@ int main(int, char**)
             p.gpu.size);
         ERROR_CUDA(cudaGetLastError());
         ERROR_CUDA(cudaDeviceSynchronize());
-        //p.getCellIndexesPart2(unique_count);
-        //p.copy_back(grid_width, grid_heigth);
+
+#ifdef DEBUG
+        p.getCellIndexesPart2(unique_count);
+        p.copy_back(grid_width, grid_heigth);
+#endif
 
         // collisions
         particlesCollisionKernel<<<blocks, threads>>>(p.gpu, p.cell_size, grid_width, grid_heigth, p.cell_count);
-        ERROR_CUDA(cudaGetLastError());
-        ERROR_CUDA(cudaDeviceSynchronize());
-
+        // postpone synchronization until drawing
+        //ERROR_CUDA(cudaGetLastError());
+        //ERROR_CUDA(cudaDeviceSynchronize());
 
         {
             ImGui::SetNextWindowSize(ImVec2(300, 80));
@@ -561,6 +566,9 @@ int main(int, char**)
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
+
+        ERROR_CUDA(cudaGetLastError());
+        ERROR_CUDA(cudaDeviceSynchronize());
         glDrawArrays(GL_POINTS, 0, p.gpu.size);
 
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
