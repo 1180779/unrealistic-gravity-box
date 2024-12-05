@@ -109,6 +109,7 @@ __device__ void particlesCollisionCheck(particles_gpu p, int i, int j)
     float dist_y = p.y[i] - p.y[j];
     float dist = sqrt(dist_x * dist_x + dist_y * dist_y);
     if (dist <= 2 * p.radius) {
+        // https://math.stackexchange.com/questions/1438002/determine-if-objects-are-moving-towards-each-other
         float dvx = p.vx[i] - p.vx[j];
         float dvy = p.vy[i] - p.vy[j];
         float v = dvx * dist_x + dvy * dist_y;
