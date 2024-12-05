@@ -120,6 +120,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="..\x64\Debug\config.txt" />
+    <Text Include="config.txt" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,19 @@
+
+# README
+# each line mu be of the following format
+# NAME VALUE
+# that is: 
+# <name of the field> <one or more white characters (' ', '\t')> <field value>
+#
+# parameters:
+# g		- gravity acceleration
+# maxabs_vx	- max starting vx velocity (abs)
+# maxabs_vy	- max starting vy velocity (abs)
+# radius	- particle radius
+# count		- number of particles
+
+g 0.4
+maxabs_vx 2.0
+maxabs_vy 2.0
+radius 1
+count 100000
