@@ -117,20 +117,24 @@ __device__ void particlesCollisionCheck(particles_gpu p, int i, int j)
 
         float contact_angle = atan2(dist_y, dist_x);
 
-        float vi_norm = p.vx[i] * cos(contact_angle) + p.vy[i] * sin(contact_angle);
-        float vi_tang = -p.vx[i] * sin(contact_angle) + p.vy[i] * cos(contact_angle);
+        // par(allel)       - component of velocity parallel        to the line defined by positions of the particles
+        // per(pendicular)  - component of vecolity perpendicular   to the line defined by positions of the particles
+        // then we can use the formula for one dimention only (along the parallel axis)
+        // https://en.wikipedia.org/wiki/Elastic_collision#One-dimensional_Newtonian
+        float vi_par = p.vx[i] * cos(contact_angle) + p.vy[i] * sin(contact_angle);
+        float vi_per = -p.vx[i] * sin(contact_angle) + p.vy[i] * cos(contact_angle);
 
-        float vj_norm = p.vx[j] * cos(contact_angle) + p.vy[j] * sin(contact_angle);
-        float vj_tang = -p.vx[j] * sin(contact_angle) + p.vy[j] * cos(contact_angle);
+        float vj_par = p.vx[j] * cos(contact_angle) + p.vy[j] * sin(contact_angle);
+        float vj_per = -p.vx[j] * sin(contact_angle) + p.vy[j] * cos(contact_angle);
 
-        float vi_norm_new = vi_norm * (p.m[i] - p.m[j]) + 2 * p.m[j] * vj_norm / (p.m[i] + p.m[j]);
-        float vj_norm_new = vj_norm * (p.m[j] - p.m[i]) + 2 * p.m[i] * vi_norm / (p.m[i] + p.m[j]);
+        float vi_par_new = vi_par * (p.m[i] - p.m[j]) + 2 * p.m[j] * vj_par / (p.m[i] + p.m[j]);
+        float vj_per_new = vj_par * (p.m[j] - p.m[i]) + 2 * p.m[i] * vi_par / (p.m[i] + p.m[j]);
 
-        p.vx[i] = vi_norm_new * cos(contact_angle) - vi_tang * sin(contact_angle);
-        p.vy[i] = vi_norm_new * sin(contact_angle) + vi_tang * cos(contact_angle);
+        p.vx[i] = vi_par_new * cos(contact_angle) - vi_per * sin(contact_angle);
+        p.vy[i] = vi_par_new * sin(contact_angle) + vi_per * cos(contact_angle);
 
-        p.vx[j] = vj_norm_new * cos(contact_angle) - vj_tang * sin(contact_angle);
-        p.vy[j] = vj_norm_new * sin(contact_angle) + vj_tang * cos(contact_angle);
+        p.vx[j] = vj_per_new * cos(contact_angle) - vj_per * sin(contact_angle);
+        p.vy[j] = vj_per_new * sin(contact_angle) + vj_per * cos(contact_angle);
     }
 }
 
