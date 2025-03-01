@@ -23,6 +23,8 @@ Example [configuration](./Cuda_OpenGL_GLFW_glad_test/config.txt) is provided.
 
 ## Examples
 
+Check [samples](./samples) directory for the following examples (.mp4)
+
 - 15 big particles
 ![](./samples/sample-15.mp4)
 
