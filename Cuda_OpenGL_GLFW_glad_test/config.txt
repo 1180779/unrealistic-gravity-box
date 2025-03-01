@@ -1,6 +1,6 @@
 
 # README
-# each line mu be of the following format
+# each line must be of the following format
 # NAME VALUE
 # that is: 
 # <name of the field> <one or more white characters (' ', '\t')> <field value>
