@@ -25,9 +25,11 @@ Example [configuration](./Cuda_OpenGL_GLFW_glad_test/config.txt) is provided.
 
 - 15 big particles
 ![](./samples/sample-15.mp4)
+![](./samples/sample-15.jpg)
 
 - 100 000 small particles (chaos)
 ![](./samples/sample-100000.mp4)
+![](./samples/sample-100000.jpg)
 
 ## FAQ
 
